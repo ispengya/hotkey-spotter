@@ -15,9 +15,6 @@
 - hotkey-spring-boot-starter  
   Spring Boot 客户端集成模块，提供配置绑定、自动装配、本地缓存以及访问统计上报封装。
 
-- hkcache-example  
-  示例 Spring Boot 应用，演示如何在业务中集成 hk-cache。
-
 ---
 
 ## 服务端使用
