@@ -136,16 +136,20 @@ public final class NettyClient {
         return pickReportChannel();
     }
 
-    /**
-     * 从配置中选择一个 server 地址。
-     *
-     * @return 选中的 server 地址
-     */
     private InetSocketAddress selectServerAddress() {
-        if (config.getServerAddresses() == null || config.getServerAddresses().isEmpty()) {
+        List<InetSocketAddress> addresses = config.getServerAddresses();
+        if (addresses == null || addresses.isEmpty()) {
             throw new IllegalStateException("No server addresses configured");
         }
-        return config.getServerAddresses().get(0);
+        if (addresses.size() == 1) {
+            return addresses.get(0);
+        }
+        String appName = config.getAppName();
+        if (appName == null || appName.isEmpty()) {
+            return addresses.get(0);
+        }
+        int idx = Math.abs(appName.hashCode()) % addresses.size();
+        return addresses.get(idx);
     }
 
     private void ensurePushPoolInitialized() throws InterruptedException {
