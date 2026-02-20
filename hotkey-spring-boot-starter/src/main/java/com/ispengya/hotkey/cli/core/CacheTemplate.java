@@ -40,7 +40,6 @@ public interface CacheTemplate {
     /**
      * 失效某个实例下的全部缓存数据。
      *
-     * @param instanceName 实例名称
      */
-    void evictAll(String instanceName);
+    void evictAll();
 }
