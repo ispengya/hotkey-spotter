@@ -15,8 +15,8 @@ public class HotKeyViewMessage implements Serializable {
     public static final class ViewEntry implements Serializable {
         private long version;
         private Set<String> hotKeys;
-        private Set<String> addedKeys;
-        private Set<String> removedKeys;
+        private String addedKey;
+        private String removedKey;
 
         public ViewEntry() {
         }
@@ -42,70 +42,34 @@ public class HotKeyViewMessage implements Serializable {
             this.hotKeys = hotKeys;
         }
 
-        public Set<String> getAddedKeys() {
-            return addedKeys;
+        public String getAddedKey() {
+            return addedKey;
         }
 
-        public void setAddedKeys(Set<String> addedKeys) {
-            this.addedKeys = addedKeys;
+        public void setAddedKey(String addedKey) {
+            this.addedKey = addedKey;
         }
 
-        public Set<String> getRemovedKeys() {
-            return removedKeys;
+        public String getRemovedKey() {
+            return removedKey;
         }
 
-        public void setRemovedKeys(Set<String> removedKeys) {
-            this.removedKeys = removedKeys;
+        public void setRemovedKey(String removedKey) {
+            this.removedKey = removedKey;
         }
     }
-
-    /**
-     * 对应的实例 ID。
-     */
-    private String instanceId;
 
     /**
      * 热 key 结果的版本号，用于增量拉取或幂等判断。
      */
     private long version;
 
-    /**
-     * 当前判定为热 key 的 key 集合。
-     */
-    private Set<String> hotKeys;
     private Map<String, ViewEntry> views;
 
     /**
      * 无参构造函数，便于序列化框架使用。
      */
     public HotKeyViewMessage() {
-    }
-
-    /**
-     * 构造热 key 视图。
-     *
-     * @param instanceId 实例 ID
-     * @param version    结果版本号
-     * @param hotKeys    热 key 集合
-     */
-    public HotKeyViewMessage(String instanceId, long version, Set<String> hotKeys) {
-        this.instanceId = instanceId;
-        this.version = version;
-        this.hotKeys = hotKeys;
-    }
-
-    /**
-     * 获取实例 ID。
-     */
-    public String getInstanceId() {
-        return instanceId;
-    }
-
-    /**
-     * 设置实例 ID。
-     */
-    public void setInstanceId(String instanceId) {
-        this.instanceId = instanceId;
     }
 
     /**
