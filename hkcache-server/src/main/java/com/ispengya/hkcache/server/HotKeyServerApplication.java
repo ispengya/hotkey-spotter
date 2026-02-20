@@ -7,16 +7,17 @@ import com.ispengya.hkcache.remoting.server.NettyServer;
 import com.ispengya.hkcache.remoting.server.NettyServerConfig;
 import com.ispengya.hkcache.remoting.server.ServerChannelManager;
 import com.ispengya.hkcache.server.config.HotKeyServerProperties;
-import com.ispengya.hkcache.server.core.HotKeyAggregateService;
-import com.ispengya.hkcache.server.core.InMemoryHotKeyAggregator;
+import com.ispengya.hkcache.server.core.InstanceWindowRegistry;
 import com.ispengya.hkcache.server.core.InMemoryHotKeyResultStore;
-import com.ispengya.hkcache.server.core.ThresholdHotKeyAlgorithm;
+import com.ispengya.hkcache.server.core.HotKeyComputeAlgorithm;
+import com.ispengya.hkcache.server.core.AccessReportPipeline;
 import com.ispengya.hkcache.server.remoting.DefaultServerRequestDispatcher;
 import com.ispengya.hkcache.server.remoting.HotKeyQueryHandler;
 import com.ispengya.hkcache.server.remoting.PingRequestHandler;
 import com.ispengya.hkcache.server.remoting.PushChannelRegisterHandler;
 import com.ispengya.hkcache.server.remoting.ReportRequestHandler;
-import com.ispengya.hkcache.server.scheduler.AggregateScheduler;
+import com.ispengya.hkcache.server.scheduler.HotKeyScheduler;
+import com.ispengya.hkcache.server.scheduler.HotKeyChangePublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,7 @@ public class HotKeyServerApplication {
 
         HotKeyServerProperties properties = HotKeyServerProperties.load();
         HotKeyServerProperties.Server serverProps = properties.getServer();
-        HotKeyServerProperties.Aggregator aggregatorProps = properties.getAggregator();
+        HotKeyServerProperties.Aggregator windowRegistryProps = properties.getAggregator();
         HotKeyServerProperties.Algorithm algorithmProps = properties.getAlgorithm();
         HotKeyServerProperties.Scheduler schedulerProps = properties.getScheduler();
         NettyServerConfig serverConfig = new NettyServerConfig(
@@ -60,20 +61,26 @@ public class HotKeyServerApplication {
         DefaultServerRequestDispatcher dispatcher = new DefaultServerRequestDispatcher();
         NettyServer nettyServer = new NettyServer(serverConfig, channelManager, dispatcher);
 
-        InMemoryHotKeyAggregator aggregator = new InMemoryHotKeyAggregator(
-                aggregatorProps.getWindowSizeMillis(),
-                aggregatorProps.getWindowSlotCount()
+        InstanceWindowRegistry windowRegistry = new InstanceWindowRegistry(
+                windowRegistryProps.getWindowSizeMillis(),
+                windowRegistryProps.getWindowSlotCount()
         );
-        HotKeyAggregateService aggregateService = new HotKeyAggregateService(aggregator);
         InMemoryHotKeyResultStore resultStore = new InMemoryHotKeyResultStore();
 
-        ThresholdHotKeyAlgorithm algorithm = new ThresholdHotKeyAlgorithm(
+        HotKeyComputeAlgorithm algorithm = new HotKeyComputeAlgorithm(
                 algorithmProps.getMinCountThreshold()
         );
 
         Serializer serializer = new JdkSerializer();
+        HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer);
+        AccessReportPipeline pipeline = new AccessReportPipeline(
+                windowRegistry,
+                algorithm,
+                resultStore,
+                changePublisher
+        );
 
-        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(aggregateService, serializer));
+        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline));
         dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer));
         dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler());
         dispatcher.registerHandler(CommandType.PUSH_CHANNEL_REGISTER, new PushChannelRegisterHandler(channelManager, serializer));
@@ -84,22 +91,20 @@ public class HotKeyServerApplication {
         ExecutorService workerPool = Executors.newFixedThreadPool(
                 schedulerProps.getWorkerPoolSize()
         );
-        AggregateScheduler aggregateScheduler = new AggregateScheduler(
+        HotKeyScheduler hotKeyScheduler = new HotKeyScheduler(
                 scheduler,
                 workerPool,
-                aggregateService,
+                windowRegistry,
                 algorithm,
                 resultStore,
-                aggregator,
                 schedulerProps.getPeriodMillis(),
-                channelManager,
-                serializer,
+                changePublisher,
                 schedulerProps.getDecayPeriodMillis(),
                 schedulerProps.getHotKeyIdleMillis()
         );
 
         // 6. Bootstrap
-        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, aggregateScheduler);
+        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, hotKeyScheduler);
         bootstrap.start();
 
         log.info("HotKey Server started on port {}", serverConfig.getPort());
