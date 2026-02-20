@@ -18,13 +18,7 @@ public interface HotKeyResultStore {
      */
     void update(HotKeyResult result);
 
-    /**
-     * 获取指定实例的最新热 Key 结果。
-     *
-     * @param instanceId 实例 ID
-     * @return 热 Key 结果，若不存在则返回 null
-     */
-    HotKeyResult get(String instanceId);
+    HotKeyResult get(String appName);
 
     Iterable<HotKeyResult> listAll();
 }
