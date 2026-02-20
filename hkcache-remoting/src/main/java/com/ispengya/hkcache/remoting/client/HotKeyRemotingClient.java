@@ -26,13 +26,16 @@ public final class HotKeyRemotingClient {
 
     private final Serializer serializer;
     private final ClientRequestSender sender;
+    private final String appName;
     private volatile Consumer<HotKeyViewMessage> pushListener;
     private final ExecutorService pushExecutor = Executors.newSingleThreadExecutor();
 
     public HotKeyRemotingClient(Serializer serializer,
-                                ClientRequestSender sender) {
+                                ClientRequestSender sender,
+                                String appName) {
         this.serializer = serializer;
         this.sender = sender;
+        this.appName = appName;
         ClientInboundHandler.setPushHandler(this::handlePushCommand);
     }
 
@@ -62,7 +65,7 @@ public final class HotKeyRemotingClient {
     }
 
     public void registerPushChannel() {
-        PushChannelRegisterMessage message = new PushChannelRegisterMessage();
+        PushChannelRegisterMessage message = new PushChannelRegisterMessage(appName);
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.PUSH_CHANNEL_REGISTER, bytes);
         sender.sendOneWayOnPushChannel(command);
