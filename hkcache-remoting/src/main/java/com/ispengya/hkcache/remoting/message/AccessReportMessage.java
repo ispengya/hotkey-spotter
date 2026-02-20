@@ -11,10 +11,7 @@ import java.util.Map;
  */
 public class AccessReportMessage implements Serializable {
 
-    /**
-     * 上报方实例 ID，用于区分不同业务应用或实例。
-     */
-    private String instanceId;
+    private String appName;
 
     /**
      * 聚合窗口结束时间戳（毫秒）。
@@ -32,35 +29,12 @@ public class AccessReportMessage implements Serializable {
     public AccessReportMessage() {
     }
 
-    /**
-     * 构造访问上报消息。
-     *
-     * @param instanceId      实例 ID
-     * @param timestamp       聚合时间戳
-     * @param keyAccessCounts key 访问次数统计
-     */
-    public AccessReportMessage(String instanceId, long timestamp, Map<String, Integer> keyAccessCounts) {
-        this.instanceId = instanceId;
-        this.timestamp = timestamp;
-        this.keyAccessCounts = keyAccessCounts;
+    public String getAppName() {
+        return appName;
     }
 
-    /**
-     * 获取实例 ID。
-     *
-     * @return 实例 ID
-     */
-    public String getInstanceId() {
-        return instanceId;
-    }
-
-    /**
-     * 设置实例 ID。
-     *
-     * @param instanceId 实例 ID
-     */
-    public void setInstanceId(String instanceId) {
-        this.instanceId = instanceId;
+    public void setAppName(String appName) {
+        this.appName = appName;
     }
 
     /**
