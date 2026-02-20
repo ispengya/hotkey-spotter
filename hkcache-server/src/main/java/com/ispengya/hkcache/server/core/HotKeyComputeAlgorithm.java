@@ -1,21 +1,32 @@
 package com.ispengya.hkcache.server.core;
 
-import java.util.Set;
-
 /**
- * HotKeyComputeAlgorithm 定义热 Key 计算算法接口。
+ * HotKeyComputeAlgorithm 定义滑动窗口下的热 Key 判定算法。
  *
- * <p>输入一组聚合后的统计数据，输出被判定为热 Key 的集合。</p>
- *
- * @author ispengya
+ * <p>在给定时间窗口内，如果某个 key 的访问总数
+ * 大于等于阈值，则判定为热 key。时间窗口由 {@link SlidingWindowInstanceAggStore} 的
+ * 配置决定，算法本身只依赖聚合后的统计数据。</p>
  */
-public interface HotKeyComputeAlgorithm {
+public final class HotKeyComputeAlgorithm {
 
     /**
-     * 执行热 Key 计算。
-     *
-     * @param stats 聚合统计数据
-     * @return 热 Key 集合
+     * 最小访问次数阈值。
      */
-    Set<String> computeHotKeys(Iterable<AggregatedKeyStat> stats);
+    private final long minCountThreshold;
+
+    /**
+     * 构造滑动窗口热 Key 判定算法。
+     *
+     * @param minCountThreshold 访问次数阈值
+     */
+    public HotKeyComputeAlgorithm(long minCountThreshold) {
+        this.minCountThreshold = minCountThreshold;
+    }
+
+    public boolean isHot(AggregatedKeyStat stat) {
+        if (stat == null) {
+            return false;
+        }
+        return stat.getTotalCount() >= minCountThreshold;
+    }
 }
