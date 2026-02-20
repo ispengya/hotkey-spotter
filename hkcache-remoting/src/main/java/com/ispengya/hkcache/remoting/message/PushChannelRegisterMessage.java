@@ -4,20 +4,20 @@ import java.io.Serializable;
 
 public class PushChannelRegisterMessage implements Serializable {
 
-    private String instanceId;
+    private String appName;
 
     public PushChannelRegisterMessage() {
     }
 
-    public PushChannelRegisterMessage(String instanceId) {
-        this.instanceId = instanceId;
+    public PushChannelRegisterMessage(String appName) {
+        this.appName = appName;
     }
 
-    public String getInstanceId() {
-        return instanceId;
+    public String getAppName() {
+        return appName;
     }
 
-    public void setInstanceId(String instanceId) {
-        this.instanceId = instanceId;
+    public void setAppName(String appName) {
+        this.appName = appName;
     }
 }
