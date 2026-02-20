@@ -1,79 +1,76 @@
 package com.ispengya.hkcache.server.scheduler;
 
 import com.ispengya.hkcache.server.core.AggregatedKeyStat;
-import com.ispengya.hkcache.server.core.HotKeyAggregateService;
 import com.ispengya.hkcache.server.core.HotKeyComputeAlgorithm;
 import com.ispengya.hkcache.server.core.HotKeyResultStore;
+import com.ispengya.hkcache.server.core.InstanceWindowRegistry;
 import com.ispengya.hkcache.server.model.HotKeyResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-public final class HotKeyComputeTask implements Runnable {
+public final class HotKeyComputeTask {
 
+    private static final Logger log = LoggerFactory.getLogger(HotKeyComputeTask.class);
     private static final ConcurrentMap<String, InstanceHotState> STATE = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<String, Lock> LOCKS = new ConcurrentHashMap<>();
 
-    private final String instanceId;
-    private final HotKeyAggregateService aggregateService;
+    private final String appName;
+    private final InstanceWindowRegistry aggregator;
     private final HotKeyComputeAlgorithm algorithm;
     private final HotKeyResultStore resultStore;
     private final HotKeyChangePublisher changePublisher;
 
-    public HotKeyComputeTask(String instanceId,
-                             HotKeyAggregateService aggregateService,
+    public HotKeyComputeTask(String appName,
+                             InstanceWindowRegistry aggregator,
                              HotKeyComputeAlgorithm algorithm,
                              HotKeyResultStore resultStore,
                              HotKeyChangePublisher changePublisher) {
-        this.instanceId = instanceId;
-        this.aggregateService = aggregateService;
+        this.appName = appName;
+        this.aggregator = aggregator;
         this.algorithm = algorithm;
         this.resultStore = resultStore;
         this.changePublisher = changePublisher;
     }
 
-    @Override
-    public void run() {
-        Lock lock = acquireInstanceLock(instanceId);
-        lock.lock();
-        try {
-            Iterable<AggregatedKeyStat> stats = aggregateService.snapshot(instanceId);
-            HotKeyResult previous = resultStore.get(instanceId);
-            Set<String> previousKeys = previous == null ? Collections.emptySet() : previous.getHotKeys();
-
-            Set<String> discovered = algorithm.computeHotKeys(stats);
-            if (discovered == null || discovered.isEmpty()) {
-                return;
-            }
-
-            long now = System.currentTimeMillis();
-            for (String key : discovered) {
-                if (key == null) {
-                    continue;
-                }
-                recordHot(instanceId, key, 1.0d, now);
-            }
-
-            Set<String> newHotKeys = new HashSet<>(previousKeys);
-            newHotKeys.addAll(discovered);
-
-            Set<String> addedKeys = new HashSet<>(discovered);
-            addedKeys.removeAll(previousKeys);
-            if (addedKeys.isEmpty()) {
-                return;
-            }
-
-            HotKeyResult result = HotKeyResult.from(instanceId, newHotKeys);
-            resultStore.update(result);
-            changePublisher.publish(result, addedKeys, null);
-        } finally {
-            lock.unlock();
+    public static void computeAndPublish(String appName,
+                                         String key,
+                                         InstanceWindowRegistry aggregator,
+                                         HotKeyComputeAlgorithm algorithm,
+                                         HotKeyResultStore resultStore,
+                                         HotKeyChangePublisher changePublisher) {
+        if (key == null) {
+            return;
         }
+        AggregatedKeyStat stat = aggregator
+                .selectWindowForApp(appName)
+                .snapshotForKey(key);
+        if (!algorithm.isHot(stat)) {
+            if (log.isDebugEnabled()) {
+                log.debug("Key not hot, skip publish. appName={}, key={}", appName, key);
+            }
+            return;
+        }
+        long now = System.currentTimeMillis();
+        recordHot(appName, key, 1.0d, now);
+
+        HotKeyResult previous = resultStore.get(appName);
+        Set<String> previousKeys = previous == null ? Collections.emptySet() : previous.getHotKeys();
+
+        Set<String> newHotKeys = new HashSet<>(previousKeys);
+        newHotKeys.add(key);
+
+        HotKeyResult result = HotKeyResult.from(appName, newHotKeys);
+        resultStore.update(result);
+        if (log.isInfoEnabled()) {
+            log.info("Detect hot key. appName={}, key={}, hotSize={}",
+                    appName, key, newHotKeys.size());
+        }
+        changePublisher.publish(result, Collections.singleton(key), null);
     }
 
     static long getLastActiveTime(String instanceId, String key) {
@@ -103,10 +100,6 @@ public final class HotKeyComputeTask implements Runnable {
         entry.lastActiveTimeMillis = nowMillis;
     }
 
-    static Lock acquireInstanceLock(String instanceId) {
-        return LOCKS.computeIfAbsent(instanceId, k -> new ReentrantLock());
-    }
-
     private static final class InstanceHotState {
 
         private final String instanceId;
@@ -125,68 +118,6 @@ public final class HotKeyComputeTask implements Runnable {
 
         private HotKeyEntry(String key) {
             this.key = key;
-        }
-    }
-}
-
-final class HotKeyDecayTask implements Runnable {
-
-    private final String instanceId;
-    private final HotKeyResultStore resultStore;
-    private final long idleMillis;
-    private final HotKeyChangePublisher changePublisher;
-
-    HotKeyDecayTask(String instanceId,
-                    HotKeyResultStore resultStore,
-                    long idleMillis,
-                    HotKeyChangePublisher changePublisher) {
-        this.instanceId = instanceId;
-        this.resultStore = resultStore;
-        this.idleMillis = idleMillis;
-        this.changePublisher = changePublisher;
-    }
-
-    @Override
-    public void run() {
-        Lock lock = HotKeyComputeTask.acquireInstanceLock(instanceId);
-        lock.lock();
-        try {
-            HotKeyResult previous = resultStore.get(instanceId);
-            if (previous == null) {
-                return;
-            }
-            Set<String> previousKeys = previous.getHotKeys();
-            if (previousKeys == null || previousKeys.isEmpty()) {
-                return;
-            }
-
-            long now = System.currentTimeMillis();
-            Set<String> newHotKeys = new HashSet<>(previousKeys);
-            Set<String> removedKeys = new HashSet<>();
-            boolean changed = false;
-
-            for (String key : previousKeys) {
-                if (key == null) {
-                    continue;
-                }
-                long lastActive = HotKeyComputeTask.getLastActiveTime(instanceId, key);
-                if (lastActive <= 0L || now - lastActive >= idleMillis) {
-                    newHotKeys.remove(key);
-                    HotKeyComputeTask.removeKey(instanceId, key);
-                    removedKeys.add(key);
-                    changed = true;
-                }
-            }
-
-            if (!changed) {
-                return;
-            }
-
-            HotKeyResult result = HotKeyResult.from(instanceId, newHotKeys);
-            resultStore.update(result);
-            changePublisher.publish(result, null, removedKeys);
-        } finally {
-            lock.unlock();
         }
     }
 }
