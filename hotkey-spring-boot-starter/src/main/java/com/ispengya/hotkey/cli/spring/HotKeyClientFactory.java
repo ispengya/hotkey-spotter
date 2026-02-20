@@ -16,11 +16,10 @@ import com.ispengya.hotkey.cli.detect.HotKeySet;
  */
 public class HotKeyClientFactory {
 
-    public HotKeyClient createHotKeyClient(String instanceName,
-                                           HotKeyDetector detector,
+    public HotKeyClient createHotKeyClient(HotKeyDetector detector,
                                            HotKeySet hotKeySet,
                                            CacheTemplate cacheTemplate,
                                            PostLoadAction postLoadAction) {
-        return new HotKeyClient(instanceName, detector, hotKeySet, cacheTemplate, postLoadAction);
+        return new HotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction);
     }
 }
