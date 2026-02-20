@@ -25,7 +25,7 @@ public final class PushChannelRegisterHandler implements RequestHandler {
             if (message == null) {
                 return;
             }
-            channelManager.registerPushChannel(ctx.channel());
+            channelManager.registerPushChannel(message.getAppName(), ctx.channel());
             Command response = new Command(CommandType.PUSH_CHANNEL_REGISTER, command.getRequestId(), null);
             ctx.writeAndFlush(response);
         } catch (Exception ignored) {
