@@ -8,17 +8,20 @@ import com.ispengya.hkcache.remoting.client.NettyClient;
 import com.ispengya.hkcache.remoting.client.NettyClientConfig;
 import com.ispengya.hkcache.remoting.protocol.Serializer;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
-import com.ispengya.hotkey.cli.config.InstanceConfig;
+import com.ispengya.hotkey.cli.cache.DefaultLocalCache;
+import com.ispengya.hotkey.cli.cache.ICache;
 import com.ispengya.hotkey.cli.core.CacheTemplate;
+import com.ispengya.hotkey.cli.core.DefaultCacheTemplate;
 import com.ispengya.hotkey.cli.core.HotKeyClient;
 import com.ispengya.hotkey.cli.core.PostLoadAction;
 import com.ispengya.hotkey.cli.detect.HotKeyDetector;
 import com.ispengya.hotkey.cli.detect.HotKeySet;
+import com.ispengya.hotkey.cli.origin.DefaultSafeLoadExecutor;
+import com.ispengya.hotkey.cli.origin.SafeLoadExecutor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -48,6 +51,7 @@ public class HotKeyAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
+    @Deprecated
     public HotKeyClientManager hkcacheHotKeyClientManager() {
         return new HotKeyClientManager();
     }
@@ -79,13 +83,15 @@ public class HotKeyAutoConfiguration {
         int maxFrameBytes = clientConfig.getMaxFrameBytes();
         int pushPoolSize = clientConfig.getPushPoolSize();
         int reportPoolSize = clientConfig.getReportPoolSize();
+        String appName = properties.getAppName();
         NettyClientConfig config = new NettyClientConfig(
                 serverAddresses,
                 connectTimeoutMillis,
                 workerThreads,
                 maxFrameBytes,
                 pushPoolSize,
-                reportPoolSize
+                reportPoolSize,
+                appName
         );
         NettyClient client = new NettyClient(config);
         client.start();
@@ -94,9 +100,12 @@ public class HotKeyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HotKeyRemotingClient hkcacheRemotingClient(Serializer serializer, NettyClient nettyClient) {
+    public HotKeyRemotingClient hkcacheRemotingClient(HotKeyProperties properties,
+                                                      Serializer serializer,
+                                                      NettyClient nettyClient) {
         ClientRequestSender sender = new ClientRequestSender(nettyClient);
-        HotKeyRemotingClient client = new HotKeyRemotingClient(serializer, sender);
+        String appName = properties.getAppName();
+        HotKeyRemotingClient client = new HotKeyRemotingClient(serializer, sender, appName);
         client.registerPushChannel();
         return client;
     }
@@ -109,6 +118,63 @@ public class HotKeyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ICache<String, Object> hkcacheLocalCache(HotKeyProperties properties) {
+        HotKeyProperties.ClientConfig client = properties.getClient();
+        long maximumSize = client.getLocalCacheMaximumSize();
+        long expireMillis = client.getLocalCacheExpireAfterWriteMillis();
+        String className = client.getLocalCacheClass();
+        Class<?> clazz = resolveClass(className, DefaultLocalCache.class, ICache.class);
+        if (clazz == DefaultLocalCache.class) {
+            return new DefaultLocalCache<>(maximumSize, expireMillis);
+        }
+        try {
+            Class<? extends ICache> cacheClass = (Class<? extends ICache>) clazz;
+            return (ICache<String, Object>) cacheClass
+                    .getDeclaredConstructor()
+                    .newInstance();
+        } catch (Exception e) {
+            return new DefaultLocalCache<>(maximumSize, expireMillis);
+        }
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SafeLoadExecutor hkcacheSafeLoadExecutor(HotKeyProperties properties) {
+        HotKeyProperties.ClientConfig client = properties.getClient();
+        String className = client.getSafeLoadExecutorClass();
+        Class<?> clazz = resolveClass(className, DefaultSafeLoadExecutor.class, SafeLoadExecutor.class);
+        if (clazz == DefaultSafeLoadExecutor.class) {
+            return new DefaultSafeLoadExecutor();
+        }
+        try {
+            return (SafeLoadExecutor) clazz.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            return new DefaultSafeLoadExecutor();
+        }
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CacheTemplate hkcacheCacheTemplate(HotKeyProperties properties,
+                                              ICache<String, Object> hkcacheLocalCache,
+                                              SafeLoadExecutor hkcacheSafeLoadExecutor) {
+        HotKeyProperties.ClientConfig client = properties.getClient();
+        String className = client.getCacheTemplateClass();
+        Class<?> clazz = resolveClass(className, DefaultCacheTemplate.class, CacheTemplate.class);
+        if (clazz == DefaultCacheTemplate.class) {
+            return new DefaultCacheTemplate(hkcacheLocalCache, hkcacheSafeLoadExecutor);
+        }
+        try {
+            return (CacheTemplate) clazz
+                    .getConstructor(ICache.class, SafeLoadExecutor.class)
+                    .newInstance(hkcacheLocalCache, hkcacheSafeLoadExecutor);
+        } catch (Exception e) {
+            return new DefaultCacheTemplate(hkcacheLocalCache, hkcacheSafeLoadExecutor);
+        }
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public HotKeyDetector hkcacheHotKeyDetector(HotKeyProperties properties,
                                                 HotKeyRemotingClient remotingClient,
                                                 HotKeySet hotKeySet) {
@@ -116,9 +182,11 @@ public class HotKeyAutoConfiguration {
         long reportPeriodMillis = detectConfig.getReportPeriodMillis();
         long queryPeriodMillis = detectConfig.getQueryPeriodMillis();
         long queryTimeoutMillis = detectConfig.getQueryTimeoutMillis();
+        String appName = properties.getAppName();
         HotKeyDetector detector = new HotKeyDetector(
                 remotingClient,
                 hotKeySet,
+                appName,
                 reportPeriodMillis,
                 queryPeriodMillis,
                 queryTimeoutMillis
@@ -161,58 +229,34 @@ public class HotKeyAutoConfiguration {
     /**
      * 注册默认的 HotKeyClient。
      *
-     * @param properties       外部化配置
      * @param detector         热 key 探测器
      * @param hotKeySet        热 key 视图
      * @param postLoadAction   后置处理回调
-     * @param hotKeyClientManager 客户端管理器
      * @return 默认 HotKeyClient 实例
      */
     @Bean(name = HotKeyBeanNames.DEFAULT_CLIENT)
     @ConditionalOnMissingBean
-    public HotKeyClient hkcacheHotKeyClient(HotKeyProperties properties,
-                                            HotKeyDetector detector,
+    public HotKeyClient hkcacheHotKeyClient(HotKeyDetector detector,
                                             HotKeySet hotKeySet,
                                             PostLoadAction postLoadAction,
-                                            ApplicationContext applicationContext,
-                                            HotKeyClientManager hotKeyClientManager) {
-        List<InstanceConfig> instances = properties.getInstances();
-        if (CollUtil.isEmpty(instances)) {
-            InstanceConfig defaultConfig = new InstanceConfig();
-            defaultConfig.setInstanceName("default");
-            instances = new ArrayList<>();
-            instances.add(defaultConfig);
-        }
+                                            CacheTemplate cacheTemplate) {
         HotKeyClientFactory factory = new HotKeyClientFactory();
-        HotKeyClient defaultClient = null;
-        for (InstanceConfig config : instances) {
-            String instanceName = config.getInstanceName();
-            if (StringUtils.isEmpty(instanceName)) {
-                instanceName = "default";
-            }
-            String templateBeanName = buildCacheTemplateBeanName(instanceName);
-            // 暂时忽略找不到 CacheTemplate 的情况，实际应有默认实现
-            CacheTemplate cacheTemplate = null;
-            try {
-                cacheTemplate = applicationContext.getBean(templateBeanName, CacheTemplate.class);
-            } catch (Exception e) {
-                // ignore
-            }
-            if (cacheTemplate == null) {
-                 // fallback logic if needed
-                 continue;
-            }
-            
-            HotKeyClient client = factory.createHotKeyClient(instanceName, detector, hotKeySet, cacheTemplate, postLoadAction);
-            hotKeyClientManager.register(instanceName, client);
-            if (defaultClient == null) {
-                defaultClient = client;
-            }
-        }
-        return defaultClient;
+        //        hotKeyClientManager.register("default", client);
+        return factory.createHotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction);
     }
 
-    private String buildCacheTemplateBeanName(String instanceName) {
-        return "hkcache." + (StringUtils.isEmpty(instanceName) ? "default" : instanceName) + ".cacheTemplate";
+    private Class<?> resolveClass(String className, Class<?> defaultClass, Class<?> expectedType) {
+        if (StringUtils.isEmpty(className)) {
+            return defaultClass;
+        }
+        try {
+            Class<?> clazz = Class.forName(className);
+            if (!expectedType.isAssignableFrom(clazz)) {
+                return defaultClass;
+            }
+            return clazz;
+        } catch (ClassNotFoundException e) {
+            return defaultClass;
+        }
     }
 }
