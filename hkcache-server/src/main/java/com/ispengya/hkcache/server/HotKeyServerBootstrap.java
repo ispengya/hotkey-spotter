@@ -1,7 +1,7 @@
 package com.ispengya.hkcache.server;
 
 import com.ispengya.hkcache.remoting.server.NettyServer;
-import com.ispengya.hkcache.server.scheduler.AggregateScheduler;
+import com.ispengya.hkcache.server.scheduler.HotKeyScheduler;
 
 /**
  * HotKeyServerBootstrap 服务端启动引导类。
@@ -13,18 +13,18 @@ import com.ispengya.hkcache.server.scheduler.AggregateScheduler;
 public final class HotKeyServerBootstrap {
 
     private final NettyServer nettyServer;
-    private final AggregateScheduler aggregateScheduler;
+    private final HotKeyScheduler hotKeyScheduler;
 
     /**
      * 构造启动引导类。
      *
      * @param nettyServer        Netty 服务端
-     * @param aggregateScheduler 聚合调度器
+     * @param hotKeyScheduler 聚合调度器
      */
     public HotKeyServerBootstrap(NettyServer nettyServer,
-                                 AggregateScheduler aggregateScheduler) {
+                                 HotKeyScheduler hotKeyScheduler) {
         this.nettyServer = nettyServer;
-        this.aggregateScheduler = aggregateScheduler;
+        this.hotKeyScheduler = hotKeyScheduler;
     }
 
     /**
@@ -32,14 +32,14 @@ public final class HotKeyServerBootstrap {
      */
     public void start() {
         nettyServer.start();
-        aggregateScheduler.start();
+        hotKeyScheduler.start();
     }
 
     /**
      * 停止服务。
      */
     public void stop() {
-        aggregateScheduler.stop();
+        hotKeyScheduler.stop();
         nettyServer.stop();
     }
 }
