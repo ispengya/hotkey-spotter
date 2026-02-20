@@ -2,6 +2,7 @@ package com.ispengya.hotkey.cli.detect;
 
 import com.ispengya.hkcache.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hkcache.remoting.message.AccessReportMessage;
+import com.ispengya.hkcache.remoting.message.HotKeyViewMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -27,8 +29,8 @@ public class HotKeyDetector {
 
     private final ScheduledExecutorService scheduler;
     private final HotKeyTransport transport;
-    private final HotKeyViewRefresher viewRefresher;
-    private final ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>> accessBuffer = new ConcurrentHashMap<>();
+    private final HotKeySet hotKeySet;
+    private final AccessCounterCollector collector = new AccessCounterCollector();
     private final long reportPeriodMillis;
 
     /**
@@ -39,23 +41,21 @@ public class HotKeyDetector {
      */
     public HotKeyDetector(HotKeyRemotingClient remotingClient,
                           HotKeySet hotKeySet,
+                          String appName,
                           long reportPeriodMillis,
                           long queryPeriodMillis,
                           long queryTimeoutMillis) {
         this.scheduler = Executors.newScheduledThreadPool(1);
-        this.transport = new HotKeyTransport(remotingClient);
+        this.transport = new HotKeyTransport(remotingClient, appName);
         this.reportPeriodMillis = reportPeriodMillis;
-        this.viewRefresher = new HotKeyViewRefresher(
-                transport,
-                hotKeySet,
-                queryPeriodMillis,
-                queryTimeoutMillis
-        );
+        this.hotKeySet = hotKeySet;
+        this.transport.setPushListener(this::handlePush);
     }
 
     public HotKeyDetector(HotKeyRemotingClient remotingClient,
-                          HotKeySet hotKeySet) {
-        this(remotingClient, hotKeySet, 5000L, 30000L, 3000L);
+                          HotKeySet hotKeySet,
+                          String appName) {
+        this(remotingClient, hotKeySet, appName, 500L, 30000L, 3000L);
     }
 
     /**
@@ -68,7 +68,6 @@ public class HotKeyDetector {
                 reportPeriodMillis,
                 TimeUnit.MILLISECONDS
         );
-        viewRefresher.start();
     }
 
     /**
@@ -76,23 +75,18 @@ public class HotKeyDetector {
      */
     public void stop() {
         scheduler.shutdown();
-        viewRefresher.stop();
     }
 
     /**
      * 记录一次访问事件，累加到内存缓冲中。
      *
-     * @param instanceName 实例名称
-     * @param key          业务 Key
+     * @param key 业务 Key
      */
-    public void recordAccess(String instanceName, String key) {
-        if (instanceName == null || key == null) {
+    public void recordAccess(String key) {
+        if (key == null) {
             return;
         }
-        accessBuffer
-                .computeIfAbsent(instanceName, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(key, k -> new LongAdder())
-                .increment();
+        collector.record(key);
     }
 
     /**
@@ -100,46 +94,82 @@ public class HotKeyDetector {
      */
     private void reportTask() {
         try {
-            if (accessBuffer.isEmpty()) {
-                return;
-            }
-
-            Map<String, Map<String, Integer>> snapshot = new HashMap<>();
-            accessBuffer.forEach((instanceName, keyMap) -> {
-                Map<String, Integer> counts = new HashMap<>();
-                keyMap.forEach((key, adder) -> {
-                    long count = adder.sumThenReset();
-                    if (count > 0) {
-                        counts.put(key, (int) count);
-                    }
-                });
-                if (!counts.isEmpty()) {
-                    snapshot.put(instanceName, counts);
-                }
-            });
-
-            accessBuffer.forEach((instanceName, keyMap) -> {
-                keyMap.entrySet().removeIf(e -> e.getValue().sum() == 0);
-                if (keyMap.isEmpty()) {
-                    accessBuffer.remove(instanceName, keyMap);
-                }
-            });
-
-            if (snapshot.isEmpty()) {
+            Map<String, Integer> counts = collector.drain();
+            if (counts.isEmpty()) {
                 return;
             }
 
             long timestamp = System.currentTimeMillis();
-            snapshot.forEach((instanceName, counts) -> {
-                AccessReportMessage message = new AccessReportMessage();
-                message.setInstanceId(instanceName);
-                message.setTimestamp(timestamp);
-                message.setKeyAccessCounts(counts);
-                transport.reportAccess(message);
-            });
-
+            AccessReportMessage message = new AccessReportMessage();
+            message.setTimestamp(timestamp);
+            message.setKeyAccessCounts(counts);
+            transport.reportAccess(message);
         } catch (Exception e) {
             log.error("Failed to report access data", e);
+        }
+    }
+
+    private void handlePush(HotKeyViewMessage message) {
+        if (message == null) {
+            return;
+        }
+        handleMessage(message);
+    }
+
+    private void handleMessage(HotKeyViewMessage message) {
+        if (message == null) {
+            return;
+        }
+        Map<String, HotKeyViewMessage.ViewEntry> views = message.getViews();
+        if (views == null || views.isEmpty()) {
+            return;
+        }
+        views.forEach((appName, entry) -> {
+            if (entry == null) {
+                return;
+            }
+            boolean updated = false;
+            if (entry.getAddedKey() != null) {
+                updated |= hotKeySet.add(entry.getAddedKey());
+            }
+            if (entry.getRemovedKey() != null) {
+                updated |= hotKeySet.remove(entry.getRemovedKey());
+            }
+            if (updated && log.isDebugEnabled()) {
+                log.debug("Updated hot keys for app {}", appName);
+            }
+        });
+    }
+
+    static final class AccessCounterCollector {
+
+        private final ConcurrentHashMap<String, LongAdder> map0 = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, LongAdder> map1 = new ConcurrentHashMap<>();
+        private final AtomicLong seq = new AtomicLong();
+
+        void record(String key) {
+            if (key == null) {
+                return;
+            }
+            if ((seq.get() & 1L) == 0L) {
+                map0.computeIfAbsent(key, k -> new LongAdder()).increment();
+            } else {
+                map1.computeIfAbsent(key, k -> new LongAdder()).increment();
+            }
+        }
+
+        Map<String, Integer> drain() {
+            long v = seq.incrementAndGet();
+            ConcurrentHashMap<String, LongAdder> target = (v & 1L) == 0L ? map1 : map0;
+            Map<String, Integer> result = new HashMap<>();
+            target.forEach((key, adder) -> {
+                long count = adder.sumThenReset();
+                if (count > 0L) {
+                    result.put(key, (int) count);
+                }
+            });
+            target.entrySet().removeIf(e -> e.getValue().sum() == 0L);
+            return result;
         }
     }
 }
