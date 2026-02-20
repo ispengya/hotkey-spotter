@@ -63,7 +63,6 @@ public class DefaultCacheTemplate implements CacheTemplate {
 
         try {
             T value = safeLoadExecutor.safeLoad(
-                    context.getInstanceName(),
                     key,
                     () -> loader.load(key)
             );
@@ -89,14 +88,8 @@ public class DefaultCacheTemplate implements CacheTemplate {
         localCache.invalidate(context.getKey());
     }
 
-    /**
-     * 清空指定实例对应的全部本地缓存。
-     * 当前实现为全局清空，不按实例区分。
-     *
-     * @param instanceName 实例名称
-     */
     @Override
-    public void evictAll(String instanceName) {
+    public void evictAll() {
         localCache.invalidateAll();
     }
 }
