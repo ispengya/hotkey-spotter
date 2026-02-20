@@ -10,10 +10,9 @@ import java.util.List;
  */
 public final class NettyClientConfig {
 
-    /**
-     * 可用的 server 地址列表。
-     */
     private final List<InetSocketAddress> serverAddresses;
+
+    private final String appName;
 
     /**
      * 连接超时时间（毫秒）。
@@ -47,7 +46,7 @@ public final class NettyClientConfig {
                              int connectTimeoutMillis,
                              int workerThreads,
                              int maxFrameLength) {
-        this(serverAddresses, connectTimeoutMillis, workerThreads, maxFrameLength, 1, 2);
+        this(serverAddresses, connectTimeoutMillis, workerThreads, maxFrameLength, 1, 2, null);
     }
 
     public NettyClientConfig(List<InetSocketAddress> serverAddresses,
@@ -55,13 +54,15 @@ public final class NettyClientConfig {
                              int workerThreads,
                              int maxFrameLength,
                              int pushPoolSize,
-                             int reportPoolSize) {
+                             int reportPoolSize,
+                             String appName) {
         this.serverAddresses = serverAddresses;
         this.connectTimeoutMillis = connectTimeoutMillis;
         this.workerThreads = workerThreads;
         this.maxFrameLength = maxFrameLength;
         this.pushPoolSize = pushPoolSize;
         this.reportPoolSize = reportPoolSize;
+        this.appName = appName;
     }
 
     public List<InetSocketAddress> getServerAddresses() {
@@ -86,5 +87,9 @@ public final class NettyClientConfig {
 
     public int getReportPoolSize() {
         return reportPoolSize;
+    }
+
+    public String getAppName() {
+        return appName;
     }
 }
