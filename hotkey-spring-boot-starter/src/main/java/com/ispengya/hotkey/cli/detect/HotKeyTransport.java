@@ -16,14 +16,17 @@ import java.util.function.Consumer;
 public class HotKeyTransport {
 
     private final HotKeyRemotingClient remotingClient;
+    private final String appName;
 
     /**
      * 基于底层 Remoting Client 构造通信封装。
      *
      * @param remotingClient 底层 Remoting 客户端
+     * @param appName        应用名称
      */
-    public HotKeyTransport(HotKeyRemotingClient remotingClient) {
+    public HotKeyTransport(HotKeyRemotingClient remotingClient, String appName) {
         this.remotingClient = remotingClient;
+        this.appName = appName;
     }
 
     /**
@@ -32,6 +35,7 @@ public class HotKeyTransport {
      * @param message 访问统计上报消息
      */
     public void reportAccess(AccessReportMessage message) {
+        message.setAppName(appName);
         remotingClient.reportAccess(message);
     }
 
@@ -55,4 +59,3 @@ public class HotKeyTransport {
         remotingClient.setPushListener(listener);
     }
 }
-
