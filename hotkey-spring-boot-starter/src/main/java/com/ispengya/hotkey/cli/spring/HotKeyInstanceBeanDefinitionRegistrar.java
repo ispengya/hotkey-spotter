@@ -1,9 +1,7 @@
 package com.ispengya.hotkey.cli.spring;
 
-import cn.hutool.core.collection.CollUtil;
 import com.ispengya.hotkey.cli.cache.DefaultLocalCache;
 import com.ispengya.hotkey.cli.cache.ICache;
-import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.config.InstanceConfig;
 import com.ispengya.hotkey.cli.core.CacheTemplate;
 import com.ispengya.hotkey.cli.core.DefaultCacheTemplate;
@@ -12,24 +10,19 @@ import com.ispengya.hotkey.cli.origin.SafeLoadExecutor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotationMetadata;
-
 import java.util.ArrayList;
-import java.util.List;
 
 /**
- * HotKeyInstanceBeanDefinitionRegistrar 根据配置为每个实例注册本地缓存、
- * 安全回源执行器以及缓存模板等 Bean。
- *
- * 通过约定的 BeanName 实现多实例隔离和默认实现回退逻辑。
+ * HotKeyInstanceBeanDefinitionRegistrar 负责注册本地缓存、安全回源执行器以及缓存模板 Bean。
  *
  * @author ispengya
  */
+@Deprecated
 public class HotKeyInstanceBeanDefinitionRegistrar implements ImportBeanDefinitionRegistrar, EnvironmentAware {
 
     private Environment environment;
@@ -45,7 +38,7 @@ public class HotKeyInstanceBeanDefinitionRegistrar implements ImportBeanDefiniti
     }
 
     /**
-     * 注册基于配置的实例级 Bean。
+     * 注册基于配置的默认实例 Bean。
      *
      * @param importingClassMetadata 导入配置类的元信息
      * @param registry               BeanDefinitionRegistry
@@ -53,18 +46,12 @@ public class HotKeyInstanceBeanDefinitionRegistrar implements ImportBeanDefiniti
     @Override
     public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
         Binder binder = Binder.get(environment);
-        HotKeyProperties properties = binder.bind("hkcache", Bindable.of(HotKeyProperties.class))
-                .orElseGet(HotKeyProperties::new);
-        List<InstanceConfig> instances = properties.getInstances();
-        if (CollUtil.isEmpty(instances)) {
-            InstanceConfig config = new InstanceConfig();
+        InstanceConfig config = binder.bind("hkcache.instance", InstanceConfig.class)
+                .orElseGet(InstanceConfig::new);
+        if (config.getInstanceName() == null || config.getInstanceName().isEmpty()) {
             config.setInstanceName("default");
-            instances = new ArrayList<>();
-            instances.add(config);
         }
-        for (InstanceConfig config : instances) {
-            registerInstanceBeans(config, registry);
-        }
+        registerInstanceBeans(config, registry);
     }
 
     /**
