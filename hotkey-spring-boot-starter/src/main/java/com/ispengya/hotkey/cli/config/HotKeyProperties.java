@@ -2,14 +2,11 @@ package com.ispengya.hotkey.cli.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * HotKeyProperties 定义 hkcache 客户端在 Spring Boot 中的外部化配置，
  * 通过配置文件中以 "hkcache" 为前缀的属性进行绑定。
- *
- * 当前支持多实例配置信息，便于为不同实例创建独立的 HotKeyClient。
  *
  * @author ispengya
  */
@@ -18,7 +15,7 @@ public class HotKeyProperties {
 
     private boolean enabled = true;
 
-    private List<InstanceConfig> instances = new ArrayList<>();
+    private String appName;
 
     private DetectConfig detect = new DetectConfig();
 
@@ -32,12 +29,12 @@ public class HotKeyProperties {
         this.enabled = enabled;
     }
 
-    public List<InstanceConfig> getInstances() {
-        return instances;
+    public String getAppName() {
+        return appName;
     }
 
-    public void setInstances(List<InstanceConfig> instances) {
-        this.instances = instances;
+    public void setAppName(String appName) {
+        this.appName = appName;
     }
 
     public DetectConfig getDetect() {
@@ -103,6 +100,16 @@ public class HotKeyProperties {
 
         private Integer reportPoolSize = 2;
 
+        private String cacheTemplateClass;
+
+        private String localCacheClass;
+
+        private String safeLoadExecutorClass;
+
+        private Long localCacheMaximumSize = 1000L;
+
+        private Long localCacheExpireAfterWriteMillis = 5 * 60 * 1000L;
+
         public List<String> getServerAddresses() {
             return serverAddresses;
         }
@@ -149,6 +156,46 @@ public class HotKeyProperties {
 
         public void setReportPoolSize(Integer reportPoolSize) {
             this.reportPoolSize = reportPoolSize;
+        }
+
+        public String getCacheTemplateClass() {
+            return cacheTemplateClass;
+        }
+
+        public void setCacheTemplateClass(String cacheTemplateClass) {
+            this.cacheTemplateClass = cacheTemplateClass;
+        }
+
+        public String getLocalCacheClass() {
+            return localCacheClass;
+        }
+
+        public void setLocalCacheClass(String localCacheClass) {
+            this.localCacheClass = localCacheClass;
+        }
+
+        public String getSafeLoadExecutorClass() {
+            return safeLoadExecutorClass;
+        }
+
+        public void setSafeLoadExecutorClass(String safeLoadExecutorClass) {
+            this.safeLoadExecutorClass = safeLoadExecutorClass;
+        }
+
+        public Long getLocalCacheMaximumSize() {
+            return localCacheMaximumSize;
+        }
+
+        public void setLocalCacheMaximumSize(Long localCacheMaximumSize) {
+            this.localCacheMaximumSize = localCacheMaximumSize;
+        }
+
+        public Long getLocalCacheExpireAfterWriteMillis() {
+            return localCacheExpireAfterWriteMillis;
+        }
+
+        public void setLocalCacheExpireAfterWriteMillis(Long localCacheExpireAfterWriteMillis) {
+            this.localCacheExpireAfterWriteMillis = localCacheExpireAfterWriteMillis;
         }
     }
 }
