@@ -1,103 +1,57 @@
 package com.ispengya.hotkey.cli.detect;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HotKeySet {
 
-    private static final class InstanceView {
-        private volatile Set<String> hotKeys = Collections.emptySet();
-        private final AtomicLong version = new AtomicLong(0);
-    }
+    private static final Logger log = LoggerFactory.getLogger(HotKeySet.class);
 
-    private final ConcurrentHashMap<String, InstanceView> views = new ConcurrentHashMap<>();
+    private volatile Set<String> hotKeys = Collections.emptySet();
 
-    public synchronized boolean update(String instanceId, Iterable<String> keys, long newVersion) {
-        if (instanceId == null) {
+    public synchronized boolean add(String key) {
+        if (key == null) {
             return false;
         }
-        InstanceView view = views.computeIfAbsent(instanceId, k -> new InstanceView());
-        long current = view.version.get();
-        if (newVersion <= current) {
+        Set<String> merged = new HashSet<>(hotKeys);
+        boolean changed = merged.add(key);
+        if (!changed) {
             return false;
         }
-        Set<String> newSet = new HashSet<>();
-        if (keys != null) {
-            for (String key : keys) {
-                if (key != null) {
-                    newSet.add(key);
-                }
-            }
+        hotKeys = Collections.unmodifiableSet(merged);
+        if (log.isDebugEnabled()) {
+            log.debug("Add hot key. key={}, size={}", key, merged.size());
         }
-        view.hotKeys = Collections.unmodifiableSet(newSet);
-        view.version.set(newVersion);
         return true;
     }
 
-    public synchronized boolean applyDiff(String instanceId,
-                                          Iterable<String> addedKeys,
-                                          Iterable<String> removedKeys,
-                                          long newVersion) {
-        if (instanceId == null) {
+    public synchronized boolean remove(String key) {
+        if (key == null) {
             return false;
         }
-        InstanceView view = views.computeIfAbsent(instanceId, k -> new InstanceView());
-        long current = view.version.get();
-        if (newVersion <= current) {
+        if (hotKeys.isEmpty()) {
             return false;
         }
-
-        Set<String> merged = new HashSet<>(view.hotKeys);
-        if (addedKeys != null) {
-            for (String key : addedKeys) {
-                if (key != null) {
-                    merged.add(key);
-                }
-            }
+        Set<String> merged = new HashSet<>(hotKeys);
+        boolean changed = merged.remove(key);
+        if (!changed) {
+            return false;
         }
-        if (removedKeys != null) {
-            for (String key : removedKeys) {
-                if (key != null) {
-                    merged.remove(key);
-                }
-            }
+        hotKeys = Collections.unmodifiableSet(merged);
+        if (log.isDebugEnabled()) {
+            log.debug("Remove hot key. key={}, size={}", key, merged.size());
         }
-
-        view.hotKeys = Collections.unmodifiableSet(merged);
-        view.version.set(newVersion);
         return true;
     }
 
-    public boolean contains(String instanceId, String key) {
-        if (instanceId == null || key == null) {
+    public boolean contains(String key) {
+        if (key == null) {
             return false;
         }
-        InstanceView view = views.get(instanceId);
-        if (view == null) {
-            return false;
-        }
-        return view.hotKeys.contains(key);
-    }
-
-    public long getVersion(String instanceId) {
-        if (instanceId == null) {
-            return 0L;
-        }
-        InstanceView view = views.get(instanceId);
-        if (view == null) {
-            return 0L;
-        }
-        return view.version.get();
-    }
-
-    public Map<String, Long> snapshotVersions() {
-        Map<String, Long> versions = new HashMap<>();
-        views.forEach((instanceId, view) -> versions.put(instanceId, view.version.get()));
-        return versions;
+        return hotKeys.contains(key);
     }
 }
