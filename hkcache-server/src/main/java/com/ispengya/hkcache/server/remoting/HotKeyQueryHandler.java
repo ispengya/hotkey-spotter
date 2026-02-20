@@ -55,9 +55,10 @@ public final class HotKeyQueryHandler implements RequestHandler {
             HotKeyViewMessage responseMsg;
             Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
             for (HotKeyResult result : resultStore.listAll()) {
+                String owner = result.getAppName();
                 long clientVersion = 0L;
                 if (lastVersions != null) {
-                    Long v = lastVersions.get(result.getInstanceId());
+                    Long v = lastVersions.get(owner);
                     if (v != null) {
                         clientVersion = v;
                     }
@@ -70,7 +71,7 @@ public final class HotKeyQueryHandler implements RequestHandler {
                         result.getVersion(),
                         result.getHotKeys()
                 );
-                views.put(result.getInstanceId(), entry);
+                views.put(owner, entry);
             }
             responseMsg = new HotKeyViewMessage();
             responseMsg.setViews(views);
