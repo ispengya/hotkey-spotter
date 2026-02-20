@@ -17,7 +17,7 @@ public class ServerChannelManager {
 
     private final ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
-    private final Map<String, Set<Channel>> instanceChannels = new ConcurrentHashMap<>();
+    private final Map<String, Set<Channel>> appChannels = new ConcurrentHashMap<>();
 
     private final Map<Channel, String> channelIps = new ConcurrentHashMap<>();
 
@@ -30,52 +30,25 @@ public class ServerChannelManager {
     public void unregister(Channel channel) {
         channels.remove(channel);
         channelIps.remove(channel);
-        for (Set<Channel> set : instanceChannels.values()) {
+        for (Set<Channel> set : appChannels.values()) {
             set.remove(channel);
         }
         pushChannels.remove(channel);
     }
 
-    public ChannelGroup getChannels() {
-        return channels;
-    }
-
-    public void registerPushChannel(Channel channel) {
+    public void registerPushChannel(String appName, Channel channel) {
         if (channel == null) {
             return;
         }
         pushChannels.add(channel);
+        if (appName != null && !appName.isEmpty()) {
+            appChannels
+                    .computeIfAbsent(appName, k -> Collections.newSetFromMap(new ConcurrentHashMap<>()))
+                    .add(channel);
+        }
         String ip = extractIp(channel);
         if (ip != null) {
             channelIps.put(channel, ip);
-        }
-    }
-
-    public void bindInstance(String instanceId, Channel channel) {
-        if (instanceId == null || instanceId.isEmpty() || channel == null) {
-            return;
-        }
-        instanceChannels
-                .computeIfAbsent(instanceId, k -> Collections.newSetFromMap(new ConcurrentHashMap<>()))
-                .add(channel);
-        String ip = extractIp(channel);
-        if (ip != null) {
-            channelIps.put(channel, ip);
-        }
-    }
-
-    public void broadcastToInstance(String instanceId, Command command) {
-        if (instanceId == null || command == null) {
-            return;
-        }
-        Set<Channel> set = instanceChannels.get(instanceId);
-        if (set == null) {
-            return;
-        }
-        for (Channel channel : set) {
-            if (channel.isActive()) {
-                channel.writeAndFlush(command);
-            }
         }
     }
 
@@ -90,8 +63,19 @@ public class ServerChannelManager {
         }
     }
 
-    public String getIp(Channel channel) {
-        return channelIps.get(channel);
+    public void broadcastToApp(String appName, Command command) {
+        if (appName == null || command == null) {
+            return;
+        }
+        Set<Channel> set = appChannels.get(appName);
+        if (set == null) {
+            return;
+        }
+        for (Channel channel : set) {
+            if (channel.isActive()) {
+                channel.writeAndFlush(command);
+            }
+        }
     }
 
     private String extractIp(Channel channel) {
