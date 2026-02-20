@@ -12,10 +12,7 @@ import java.util.Set;
  */
 public final class AccessReport {
 
-    /**
-     * 上报方实例 ID。
-     */
-    private final String instanceId;
+    private final String appName;
 
     /**
      * 被访问的业务 key。
@@ -48,20 +45,20 @@ public final class AccessReport {
     /**
      * 构造访问上报对象。
      *
-     * @param instanceId      实例 ID
+     * @param appName         应用名
      * @param key             业务 key
      * @param timestampMillis 时间戳
      * @param success         是否成功
      * @param rtMillis        耗时
      * @param count           访问次数
      */
-    public AccessReport(String instanceId,
+    public AccessReport(String appName,
                         String key,
                         long timestampMillis,
                         boolean success,
                         long rtMillis,
                         int count) {
-        this.instanceId = instanceId;
+        this.appName = appName;
         this.key = key;
         this.timestampMillis = timestampMillis;
         this.success = success;
@@ -69,8 +66,8 @@ public final class AccessReport {
         this.count = count;
     }
 
-    public String getInstanceId() {
-        return instanceId;
+    public String getAppName() {
+        return appName;
     }
 
     public String getKey() {
