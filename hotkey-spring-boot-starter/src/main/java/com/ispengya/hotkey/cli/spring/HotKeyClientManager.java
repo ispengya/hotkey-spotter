@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author ispengya
  */
+@Deprecated
 public class HotKeyClientManager {
 
     private final Map<String, HotKeyClient> clients = new ConcurrentHashMap<>();
