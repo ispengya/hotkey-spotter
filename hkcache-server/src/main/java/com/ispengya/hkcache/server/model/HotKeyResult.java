@@ -12,10 +12,7 @@ import java.util.Set;
  */
 public final class HotKeyResult {
 
-    /**
-     * 实例 ID。
-     */
-    private final String instanceId;
+    private final String appName;
 
     /**
      * 结果版本号。
@@ -36,23 +33,23 @@ public final class HotKeyResult {
     /**
      * 构造热 Key 结果。
      *
-     * @param instanceId           实例 ID
+     * @param appName              应用名
      * @param version              版本号
      * @param lastUpdateTimeMillis 更新时间
      * @param hotKeys              热 Key 集合
      */
-    public HotKeyResult(String instanceId,
+    public HotKeyResult(String appName,
                         long version,
                         long lastUpdateTimeMillis,
                         Set<String> hotKeys) {
-        this.instanceId = instanceId;
+        this.appName = appName;
         this.version = version;
         this.lastUpdateTimeMillis = lastUpdateTimeMillis;
         this.hotKeys = hotKeys;
     }
 
-    public String getInstanceId() {
-        return instanceId;
+    public String getAppName() {
+        return appName;
     }
 
     public long getVersion() {
@@ -70,13 +67,12 @@ public final class HotKeyResult {
     /**
      * 基于当前时间构建一个新的 HotKeyResult。
      *
-     * @param instanceId 实例 ID
      * @param hotKeys    热 Key 集合
      * @return 新的 HotKeyResult 对象
      */
-    public static HotKeyResult from(String instanceId, Set<String> hotKeys) {
+    public static HotKeyResult from(String appName, Set<String> hotKeys) {
         long now = System.currentTimeMillis();
         long version = now;
-        return new HotKeyResult(instanceId, version, now, hotKeys);
+        return new HotKeyResult(appName, version, now, hotKeys);
     }
 }
