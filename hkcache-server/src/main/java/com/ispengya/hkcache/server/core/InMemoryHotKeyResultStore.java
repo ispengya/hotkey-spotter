@@ -11,19 +11,16 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class InMemoryHotKeyResultStore implements HotKeyResultStore {
 
-    /**
-     * 实例热 Key 结果映射：instanceId -> HotKeyResult。
-     */
     private final ConcurrentMap<String, HotKeyResult> store = new ConcurrentHashMap<>();
 
     @Override
     public void update(HotKeyResult result) {
-        store.put(result.getInstanceId(), result);
+        store.put(result.getAppName(), result);
     }
 
     @Override
-    public HotKeyResult get(String instanceId) {
-        return store.get(instanceId);
+    public HotKeyResult get(String appName) {
+        return store.get(appName);
     }
 
     @Override
