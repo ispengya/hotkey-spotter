@@ -7,14 +7,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * SlidingWindowInstanceAggStore 基于简易滑动窗口实现的聚合存储。
+ * SlidingWindowInstanceAggStore 按实例维度管理单个 key 的滑动时间窗口统计。
  *
- * <p>将时间划分为多个 {@link WindowSlot}，新上报的数据写入当前时间对应的槽中。
- * 获取快照时，合并所有槽的数据。</p>
- *
- * @author ispengya
+ * <p>内部将时间划分为多个 {@link WindowSlot}，新上报的数据写入当前时间对应的槽中；
+ * 获取快照时，合并当前滑动窗口覆盖范围内所有槽的数据，得到该实例在最近一段时间内
+ * 的访问聚合统计。</p>
  */
-public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
+public final class SlidingWindowInstanceAggStore {
 
     /**
      * 单个窗口槽的时间跨度（毫秒）。
@@ -34,9 +33,9 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
     /**
      * 构造滑动窗口聚合存储。
      *
-     * @param windowSizeMillis 槽时间跨度
-     * @param windowSlotCount  槽数量
-     * @param slots            槽列表
+     * @param windowSizeMillis 单个窗口槽时间跨度
+     * @param windowSlotCount  窗口槽数量
+     * @param slots            预初始化的窗口槽列表
      */
     public SlidingWindowInstanceAggStore(long windowSizeMillis,
                                          int windowSlotCount,
@@ -46,21 +45,24 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
         this.slots = slots;
     }
 
-    @Override
+    /**
+     * 将一条访问上报记录写入当前时间对应的窗口槽。
+     *
+     * @param report 访问上报对象
+     */
     public void addReport(AccessReport report) {
+        if (report == null || report.getKey() == null) {
+            return;
+        }
+        String key = report.getKey();
         long now = System.currentTimeMillis();
         WindowSlot slot = resolveSlot(now);
-        
-        // 简单的同步逻辑保证槽内线程安全
-        // 在高并发场景下，可考虑使用 ConcurrentHashMap 和原子更新，
-        // 此处遵循设计文档的简化实现，并增加同步块。
-        
         Map<String, AggregatedKeyStat> stats = slot.getStats();
         synchronized (stats) {
-            AggregatedKeyStat stat = stats.get(report.getKey());
+            AggregatedKeyStat stat = stats.get(key);
             if (stat == null) {
                 stat = new AggregatedKeyStat(
-                        report.getKey(),
+                        key,
                         0L,
                         0L,
                         0L,
@@ -72,19 +74,20 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
             long failCount = stat.getFailCount() + (report.isSuccess() ? 0L : report.getCount());
             long totalRtMillis = stat.getTotalRtMillis() + report.getRtMillis();
             AggregatedKeyStat newStat = new AggregatedKeyStat(
-                    report.getKey(),
+                    key,
                     totalCount,
                     successCount,
                     failCount,
                     totalRtMillis
             );
-            stats.put(report.getKey(), newStat);
+            stats.put(key, newStat);
         }
     }
 
-    @Override
-    public Iterable<AggregatedKeyStat> snapshot() {
-        // merged 存放当前时间窗口内所有槽合并后的统计结果
+    public AggregatedKeyStat snapshotForKey(String key) {
+        if (key == null) {
+            return null;
+        }
         Map<String, AggregatedKeyStat> merged = new HashMap<>();
         // 对当前时间对齐到窗口起点，例如 10:00:01.234 对齐为 10:00:01.000
         long nowMillis = System.currentTimeMillis();
@@ -119,7 +122,7 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
                 }
             }
         }
-        return merged.values();
+        return merged.get(key);
     }
 
     private WindowSlot resolveSlot(long nowMillis) {
