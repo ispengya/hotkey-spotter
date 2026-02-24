@@ -6,10 +6,10 @@
 
 ## 模块说明
 
-- hkcache-server  
+- hotkey-server  
   热点 Key 服务端，负责接收访问上报、按 appName 做滑动窗口聚合、判定热 Key、维护结果并推送给客户端。
 
-- hkcache-remoting  
+- hotkey-remoting  
   通信层，基于 Netty 自定义协议，提供客户端和服务端通用的 Command 编解码和请求分发能力。
 
 - hotkey-spring-boot-starter  
@@ -23,21 +23,21 @@
 
 入口类在：
 
-- hkcache-server/src/main/java/com/ispengya/hkcache/server/HotKeyServerApplication.java
+- hotkey-server/src/main/java/com/ispengya/hotkey/server/HotKeyServerApplication.java
 
 直接以普通 Java 应用方式启动即可：
 
 ```bash
-cd hkcache-server
+cd hotkey-server
 mvn package
-java -jar target/hkcache-server-*.jar
+java -jar target/hotkey-server-*.jar
 ```
 
 ### 关键配置
 
 配置文件：
 
-- hkcache-server/src/main/resources/hotkey-server.properties
+- hotkey-server/src/main/resources/hotkey-server.properties
 
 默认配置（精简版）：
 
@@ -80,12 +80,12 @@ scheduler.hotKeyIdleMillis=60000
 
 ### 配置示例
 
-配置前缀为 `hkcache`，示例：
+配置前缀为 `hotkey`，示例：
 
 ```yaml
-hkcache:
+hotkey:
   enabled: true
-  app-name: hkcache-example
+  app-name: hotkey-example
 
   client:
     server-addresses:
@@ -108,7 +108,7 @@ hkcache:
     # safe-load-executor-class: "com.example.CustomSafeLoadExecutor"
 ```
 
-### 开启 hkcache 客户端
+### 开启 hotkey 客户端
 
 在应用入口类上添加 `@EnableHotKey` 注解：
 
@@ -161,7 +161,7 @@ public class DemoService {
    - HotKeyClient 内部使用 HotKeySet 判断是否热 key、HotKeyDetector 记录访问，并委托 CacheTemplate 完成加载
 
 2. 上报访问到服务端
-   - HotKeyRemotingClient 使用 Netty 与 hkcache-server 建立长连接
+   - HotKeyRemotingClient 使用 Netty 与 hotkey-server 建立长连接
    - 定时将 AccessReportMessage 发送到服务端，对应服务端的 AccessReportPipeline
 
 3. 按 appName 维度写入滑动窗口

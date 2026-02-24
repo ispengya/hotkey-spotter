@@ -4,17 +4,17 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.ispengya</groupId>
-    <artifactId>hkcache</artifactId>
+    <artifactId>hot-spotter</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>hkcache</name>
+    <name>hot-spotter</name>
 
     <modules>
-        <module>hkcache-common</module>
-        <module>hotkey-spring-boot-starter</module>
-        <module>hkcache-remoting</module>
-        <module>hkcache-server</module>
+        <module>hot-spotter-common</module>
+        <module>hot-spotter-client-sdk</module>
+        <module>hot-spotter-remoting</module>
+        <module>hot-spotter-server</module>
     </modules>
 
     <properties>
@@ -56,12 +56,12 @@
             </dependency>
             <dependency>
                 <groupId>com.ispengya</groupId>
-                <artifactId>hkcache-common</artifactId>
+                <artifactId>hot-spotter-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.ispengya</groupId>
-                <artifactId>hkcache-remoting</artifactId>
+                <artifactId>hot-spotter-remoting</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
