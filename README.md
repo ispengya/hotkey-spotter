@@ -6,14 +6,17 @@
 
 ## 模块说明
 
-- hotkey-server  
-  热点 Key 服务端，负责接收访问上报、按 appName 做滑动窗口聚合、判定热 Key、维护结果并推送给客户端。
+- hot-spotter-server  
+  服务端，接收访问上报，按 appName 做滑动窗口聚合，判定热 Key，维护结果并推送给客户端。
 
-- hotkey-remoting  
-  通信层，基于 Netty 自定义协议，提供客户端和服务端通用的 Command 编解码和请求分发能力。
+- hot-spotter-remoting  
+  通信层，基于 Netty 自定义协议，提供客户端与服务端通用的 Command 编解码与请求分发。
 
-- hotkey-spring-boot-starter  
-  Spring Boot 客户端集成模块，提供配置绑定、自动装配、本地缓存以及访问统计上报封装。
+- hot-spotter-client-sdk  
+  客户端 SDK（Spring Boot Starter），提供配置绑定、自动装配、访问统计上报、推送接收与本地缓存保护。
+
+- hot-spotter-common  
+  公共模块，提供通用模型与基础工具。
 
 ---
 
@@ -21,25 +24,25 @@
 
 ### 启动
 
-入口类在：
+入口类：
 
-- hotkey-server/src/main/java/com/ispengya/hotkey/server/HotKeyServerApplication.java
+- hot-spotter-server/src/main/java/com/ispengya/hotkey/server/HotKeyServerApplication.java
 
-直接以普通 Java 应用方式启动即可：
+启动方式：
 
 ```bash
-cd hotkey-server
+cd hot-spotter-server
 mvn package
-java -jar target/hotkey-server-*.jar
+java -jar target/hot-spotter-server-*.jar
 ```
 
 ### 关键配置
 
 配置文件：
 
-- hotkey-server/src/main/resources/hotkey-server.properties
+- hot-spotter-server/src/main/resources/hotkey-server.properties
 
-默认配置（精简版）：
+默认配置（摘录）：
 
 ```properties
 server.port=8888
@@ -56,11 +59,12 @@ scheduler.decayPeriodMillis=60000
 scheduler.hotKeyIdleMillis=60000
 ```
 
-含义：
+说明：
 
-- 滑动窗口长度约为 1000ms × 30 ≈ 30 秒
-- 某个 appName + key 在最近 30 秒内访问次数 ≥ 3 即被判为热 Key
-- 热 Key 若连续空闲时间超过 60000ms 会被冷却并从结果集中移除
+- 滑动时间窗口 ≈ 1000ms × 30 ≈ 30 秒
+- 在最近窗口内（30 秒）访问次数 ≥ 3 的 key 被判定为热 Key
+- 热 Key 若连续空闲超过 60000ms 将被移除
+- 服务端对上报数据按“服务端接收时间”落桶，减小上报延迟对统计的影响
 
 ---
 
@@ -73,8 +77,9 @@ scheduler.hotKeyIdleMillis=60000
 ```xml
 <dependency>
     <groupId>com.ispengya</groupId>
-    <artifactId>hotkey-spring-boot-starter</artifactId>
+    <artifactId>hot-spotter-client-sdk</artifactId>
     <version>你的版本号</version>
+    <!-- 若使用 Spring Boot 自动装配，请在父工程或依赖中包含 spring-boot-autoconfigure -->
 </dependency>
 ```
 
@@ -86,31 +91,21 @@ scheduler.hotKeyIdleMillis=60000
 hotkey:
   enabled: true
   app-name: hotkey-example
-
   client:
     server-addresses:
       - "127.0.0.1:8888"
-
-    # 以下为可选项，不配置则使用默认值
+    # 可选项
     # connect-timeout-millis: 3000
     # worker-threads: 4
     # max-frame-bytes: 1048576
     # push-pool-size: 1
     # report-pool-size: 2
-
-    # 本地缓存配置
+    # 本地缓存
     # local-cache-maximum-size: 1000
     # local-cache-expire-after-write-millis: 300000
-
-    # 自定义实现类（一般情况下不需要配置）
-    # cache-template-class: "com.example.CustomCacheTemplate"
-    # local-cache-class: "com.example.CustomLocalCache"
-    # safe-load-executor-class: "com.example.CustomSafeLoadExecutor"
 ```
 
-### 开启 hotkey 客户端
-
-在应用入口类上添加 `@EnableHotKey` 注解：
+### 开启客户端
 
 ```java
 import com.ispengya.hotkey.cli.spring.EnableHotKey;
@@ -120,7 +115,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @EnableHotKey
 @SpringBootApplication
 public class DemoApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(DemoApplication.class, args);
     }
@@ -129,15 +123,12 @@ public class DemoApplication {
 
 ### HotKeyClient 使用示例
 
-业务代码通过注入 `HotKeyClient` 作为统一访问入口：
-
 ```java
 import com.ispengya.hotkey.cli.core.HotKeyClient;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DemoService {
-
     private final HotKeyClient hotKeyClient;
 
     public DemoService(HotKeyClient hotKeyClient) {
@@ -154,34 +145,27 @@ public class DemoService {
 }
 ```
 
+---
+
 ## 核心流程
 
-1. 客户端本地访问与统计
-   - 业务通过 HotKeyClient.get(...) 作为统一入口访问缓存/回源
-   - HotKeyClient 内部使用 HotKeySet 判断是否热 key、HotKeyDetector 记录访问，并委托 CacheTemplate 完成加载
+1. 客户端本地访问与统计  
+   HotKeyClient 作为统一入口；HotKeySet 判断是否热 Key，HotKeyDetector 记录访问并委托 CacheTemplate 加载。
 
-2. 上报访问到服务端
-   - HotKeyRemotingClient 使用 Netty 与 hotkey-server 建立长连接
-   - 定时将 AccessReportMessage 发送到服务端，对应服务端的 AccessReportPipeline
+2. 上报访问到服务端  
+   通过 hot-spotter-remoting 与服务端保持长连，定期批量上报 AccessReport。
 
-3. 按 appName 维度写入滑动窗口
-   - AccessReportPipeline 从队列中消费 AccessReport
-   - 通过 InstanceWindowRegistry.selectWindowForApp(appName) 选择该应用的 SlidingWindowInstanceAggStore
-   - 调用 addReport(report) 把当前访问写入对应时间片 WindowSlot
+3. 写入滑动窗口  
+   AccessReportPipeline 消费上报；InstanceWindowRegistry 选择对应应用的 SlidingWindowInstanceAggStore；按服务端接收时间落桶。
 
-4. 滑动窗口聚合与热 Key 判定
-   - 对单个 key，HotKeyComputeTask.computeAndPublish 会：
-     - 调用 snapshotForKey(key) 在当前滑动窗口内合并各时间片的统计，得到 AggregatedKeyStat
-     - 使用 HotKeyComputeAlgorithm 按阈值判断是否为热 Key
+4. 聚合与判定  
+   聚合快照在最近窗口内合并各时间片；HotKeyComputeAlgorithm 根据阈值判定热 Key。
 
-5. 结果存储与推送
-   - 若判定为热 Key，则更新 HotKeyResultStore 中该 appName 的热 Key 集合
-   - HotKeyChangePublisher 将新增/移除的热 Key 通过推送通道（按 appName 注册的 channel）通知到所有客户端
+5. 结果存储与推送  
+   更新 HotKeyResultStore 后，HotKeyChangePublisher 将新增/移除的热 Key 推送给客户端。
 
-6. 客户端接收并应用热 Key
-   - 客户端通过 registerPushChannel 注册推送通道
-   - 收到 HOT_KEY_PUSH 后，更新本地的 HotKey 集合和缓存策略，后续访问可以直接命中本地并进行保护
+6. 客户端接收并应用  
+   客户端更新本地热 Key 集合，配合本地缓存策略保护热点。
 
-7. 热 Key 衰减
-   - HotKeyScheduler 定期调度 HotKeyDecayTask
-   - HotKeyDecayTask 根据最后活跃时间和 hotKeyIdleMillis 清理长时间未活跃的热 Key，并下发冷却通知
+7. 热 Key 衰减  
+   HotKeyDecayTask 按 idleMillis 清理长时间未活跃的热 Key，并下发冷却通知。
