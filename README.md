@@ -28,7 +28,7 @@
 
 - hot-spotter-server/src/main/java/com/ispengya/hotkey/server/HotKeyServerApplication.java
 
-启动方式：
+启动方式
 
 ```bash
 cd hot-spotter-server
