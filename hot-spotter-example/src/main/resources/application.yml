@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: hot-spotter-example
+
+server:
+  port: 8080
+
+hotkey:
+  enabled: true
+  app-name: example-app
+  client:
+    server-addresses:
+      - 127.0.0.1:8888

@@ -15,6 +15,7 @@
         <module>hot-spotter-client-sdk</module>
         <module>hot-spotter-remoting</module>
         <module>hot-spotter-server</module>
+        <module>hot-spotter-example</module>
     </modules>
 
     <properties>
