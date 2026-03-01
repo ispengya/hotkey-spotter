@@ -36,10 +36,12 @@ public final class HotKeyChangePublisher {
     private final Serializer serializer;
     private final BlockingQueue<PushEvent> queue = new LinkedBlockingQueue<>();
     private final ScheduledExecutorService executor;
+    private final boolean debugEnabled;
 
-    public HotKeyChangePublisher(ServerChannelManager channelManager, Serializer serializer) {
+    public HotKeyChangePublisher(ServerChannelManager channelManager, Serializer serializer, boolean debugEnabled) {
         this.channelManager = channelManager;
         this.serializer = serializer;
+        this.debugEnabled = debugEnabled;
         this.executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
             private int index = 0;
 
@@ -76,7 +78,7 @@ public final class HotKeyChangePublisher {
                 enqueue(result, key, false);
             }
         }
-        if (log.isDebugEnabled()) {
+        if (debugEnabled && log.isDebugEnabled()) {
             int addCount = addedKeys == null ? 0 : addedKeys.size();
             int removeCount = removedKeys == null ? 0 : removedKeys.size();
             log.debug("Enqueue hot key changes. appName={}, addCount={}, removeCount={}",
@@ -92,7 +94,7 @@ public final class HotKeyChangePublisher {
         try {
             while (true) {
                 PushEvent event = queue.take();
-                if (log.isDebugEnabled()) {
+                if (debugEnabled && log.isDebugEnabled()) {
                     log.debug("Dequeue hot key change. appName={}, key={}, add={}",
                             event.result.getAppName(), event.key, event.add);
                 }

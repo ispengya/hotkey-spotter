@@ -17,6 +17,7 @@ import com.ispengya.hotkey.server.remoting.PingRequestHandler;
 import com.ispengya.hotkey.server.remoting.PushChannelRegisterHandler;
 import com.ispengya.hotkey.server.remoting.ReportRequestHandler;
 import com.ispengya.hotkey.server.scheduler.HotKeyScheduler;
+import com.ispengya.hotkey.server.scheduler.HotKeyComputeTask;
 import com.ispengya.hotkey.server.scheduler.HotKeyChangePublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,8 +72,10 @@ public class HotKeyServerApplication {
                 algorithmProps.getMinCountThreshold()
         );
 
+        HotKeyComputeTask.setDebugEnabled(properties.isDebugEnabled());
+
         Serializer serializer = new JdkSerializer();
-        HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer);
+        HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer, properties.isDebugEnabled());
         AccessReportPipeline pipeline = new AccessReportPipeline(
                 windowRegistry,
                 algorithm,
@@ -80,9 +83,9 @@ public class HotKeyServerApplication {
                 changePublisher
         );
 
-        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline));
-        dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer));
-        dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler());
+        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline, properties.isDebugEnabled()));
+        dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer, properties.isDebugEnabled()));
+        dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler(properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.PUSH_CHANNEL_REGISTER, new PushChannelRegisterHandler(channelManager, serializer));
 
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(
@@ -100,7 +103,8 @@ public class HotKeyServerApplication {
                 schedulerProps.getPeriodMillis(),
                 changePublisher,
                 schedulerProps.getDecayPeriodMillis(),
-                schedulerProps.getHotKeyIdleMillis()
+                schedulerProps.getHotKeyIdleMillis(),
+                properties.isDebugEnabled()
         );
 
         // 6. Bootstrap

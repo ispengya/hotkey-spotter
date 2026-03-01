@@ -2,6 +2,8 @@ package com.ispengya.hotkey.cli.core;
 
 import com.ispengya.hotkey.cli.detect.HotKeyDetector;
 import com.ispengya.hotkey.cli.detect.HotKeySet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HotKeyClient 是对业务方暴露的统一访问入口，
@@ -12,6 +14,8 @@ import com.ispengya.hotkey.cli.detect.HotKeySet;
  * @author ispengya
  */
 public class HotKeyClient {
+
+    private static final Logger log = LoggerFactory.getLogger(HotKeyClient.class);
 
     private final HotKeyDetector hotKeyDetector;
     private final HotKeySet hotKeySet;
@@ -59,6 +63,11 @@ public class HotKeyClient {
 
         postLoadAction.onLoaded(key, result.getValue(), result.isFromCache(), result.getCostNanos());
 
+        if (log.isInfoEnabled()) {
+            log.info("Get hot key. key={}, hot={}, fromCache={}, costNanos={}",
+                    key, isHot, result.isFromCache(), result.getCostNanos());
+        }
+
         return result.getValue();
     }
 
@@ -73,9 +82,15 @@ public class HotKeyClient {
                 System.currentTimeMillis()
         );
         cacheTemplate.evict(context);
+        if (log.isInfoEnabled()) {
+            log.info("Evict local cache. key={}", key);
+        }
     }
 
     public void evictAll() {
         cacheTemplate.evictAll();
+        if (log.isInfoEnabled()) {
+            log.info("Evict all local cache.");
+        }
     }
 }

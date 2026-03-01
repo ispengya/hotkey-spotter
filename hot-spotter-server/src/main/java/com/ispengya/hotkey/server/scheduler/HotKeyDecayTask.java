@@ -15,15 +15,18 @@ final class HotKeyDecayTask implements Runnable {
     private final HotKeyResultStore resultStore;
     private final long idleMillis;
     private final HotKeyChangePublisher changePublisher;
+    private final boolean debugEnabled;
 
     HotKeyDecayTask(String appName,
                     HotKeyResultStore resultStore,
                     long idleMillis,
-                    HotKeyChangePublisher changePublisher) {
+                    HotKeyChangePublisher changePublisher,
+                    boolean debugEnabled) {
         this.appName = appName;
         this.resultStore = resultStore;
         this.idleMillis = idleMillis;
         this.changePublisher = changePublisher;
+        this.debugEnabled = debugEnabled;
     }
 
     @Override
@@ -52,7 +55,7 @@ final class HotKeyDecayTask implements Runnable {
                 HotKeyComputeTask.removeKey(appName, key);
                 removedKeys.add(key);
                 changed = true;
-                if (log.isDebugEnabled()) {
+                if (debugEnabled && log.isDebugEnabled()) {
                     log.debug("Decay hot key due to idle. appName={}, key={}, idleMillis={}",
                             appName, key, idleMillis);
                 }

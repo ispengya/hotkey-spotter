@@ -3,6 +3,8 @@ package com.ispengya.hotkey.cli.detect;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hotkey.remoting.message.AccessReportMessage;
 import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -14,6 +16,8 @@ import java.util.function.Consumer;
  * 不参与本地缓存和业务决策。</p>
  */
 public class HotKeyTransport {
+
+    private static final Logger log = LoggerFactory.getLogger(HotKeyTransport.class);
 
     private final HotKeyRemotingClient remotingClient;
     private final String appName;
@@ -37,6 +41,10 @@ public class HotKeyTransport {
     public void reportAccess(AccessReportMessage message) {
         message.setAppName(appName);
         remotingClient.reportAccess(message);
+        if (log.isInfoEnabled()) {
+            int size = message.getKeyAccessCounts() == null ? 0 : message.getKeyAccessCounts().size();
+            log.info("Send access report to server. appName={}, keyCount={}", appName, size);
+        }
     }
 
     /**
@@ -57,5 +65,8 @@ public class HotKeyTransport {
      */
     public void setPushListener(Consumer<HotKeyViewMessage> listener) {
         remotingClient.setPushListener(listener);
+        if (log.isInfoEnabled()) {
+            log.info("Registered push listener for appName={}", appName);
+        }
     }
 }

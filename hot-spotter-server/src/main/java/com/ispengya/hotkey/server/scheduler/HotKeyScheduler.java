@@ -26,6 +26,7 @@ public final class HotKeyScheduler {
     private final long decayPeriodMillis;
     private final long hotKeyIdleMillis;
     private final HotKeyChangePublisher changePublisher;
+    private final boolean debugEnabled;
 
     /**
      * 构造调度器。
@@ -45,7 +46,8 @@ public final class HotKeyScheduler {
                            long periodMillis,
                            HotKeyChangePublisher changePublisher,
                            long decayPeriodMillis,
-                           long hotKeyIdleMillis) {
+                           long hotKeyIdleMillis,
+                           boolean debugEnabled) {
         this.scheduler = scheduler;
         this.workerPool = workerPool;
         this.aggregator = aggregator;
@@ -55,6 +57,7 @@ public final class HotKeyScheduler {
         this.decayPeriodMillis = decayPeriodMillis;
         this.hotKeyIdleMillis = hotKeyIdleMillis;
         this.changePublisher = changePublisher;
+        this.debugEnabled = debugEnabled;
     }
 
     public void start() {
@@ -77,7 +80,8 @@ public final class HotKeyScheduler {
                     appName,
                     resultStore,
                     hotKeyIdleMillis,
-                    changePublisher
+                    changePublisher,
+                    debugEnabled
             );
             workerPool.submit(task);
         }

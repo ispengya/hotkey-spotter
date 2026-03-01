@@ -23,8 +23,8 @@ public class HotKeySet {
             return false;
         }
         hotKeys = Collections.unmodifiableSet(merged);
-        if (log.isDebugEnabled()) {
-            log.debug("Add hot key. key={}, size={}", key, merged.size());
+        if (log.isInfoEnabled()) {
+            log.info("Add hot key. key={}, size={}", key, merged.size());
         }
         return true;
     }
@@ -42,8 +42,8 @@ public class HotKeySet {
             return false;
         }
         hotKeys = Collections.unmodifiableSet(merged);
-        if (log.isDebugEnabled()) {
-            log.debug("Remove hot key. key={}, size={}", key, merged.size());
+        if (log.isInfoEnabled()) {
+            log.info("Remove hot key. key={}, size={}", key, merged.size());
         }
         return true;
     }

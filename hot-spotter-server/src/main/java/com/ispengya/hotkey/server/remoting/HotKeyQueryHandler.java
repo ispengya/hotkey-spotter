@@ -28,6 +28,7 @@ public final class HotKeyQueryHandler implements RequestHandler {
 
     private final HotKeyResultStore resultStore;
     private final Serializer serializer;
+    private final boolean debugEnabled;
 
     /**
      * 构造查询请求处理器。
@@ -36,9 +37,11 @@ public final class HotKeyQueryHandler implements RequestHandler {
      * @param serializer  序列化器
      */
     public HotKeyQueryHandler(HotKeyResultStore resultStore,
-                              Serializer serializer) {
+                              Serializer serializer,
+                              boolean debugEnabled) {
         this.resultStore = resultStore;
         this.serializer = serializer;
+        this.debugEnabled = debugEnabled;
     }
 
     @Override
@@ -74,6 +77,13 @@ public final class HotKeyQueryHandler implements RequestHandler {
             }
             responseMsg = new HotKeyViewMessage();
             responseMsg.setViews(views);
+
+            if (debugEnabled && log.isDebugEnabled()) {
+                int requestSize = lastVersions == null ? 0 : lastVersions.size();
+                int responseSize = views.size();
+                log.debug("Handle hot key query. requestApps={}, responseApps={}",
+                        requestSize, responseSize);
+            }
 
             byte[] payload = serializer.serialize(responseMsg);
             Command response = new Command(CommandType.HOT_KEY_QUERY, command.getRequestId(), payload);

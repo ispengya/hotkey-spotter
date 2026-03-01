@@ -18,6 +18,7 @@ public final class HotKeyComputeTask {
 
     private static final Logger log = LoggerFactory.getLogger(HotKeyComputeTask.class);
     private static final ConcurrentMap<String, InstanceHotState> STATE = new ConcurrentHashMap<>();
+    private static volatile boolean debugEnabled = false;
 
     private final String appName;
     private final InstanceWindowRegistry aggregator;
@@ -50,7 +51,7 @@ public final class HotKeyComputeTask {
                 .selectWindowForApp(appName)
                 .snapshotForKey(key);
         if (!algorithm.isHot(stat)) {
-            if (log.isDebugEnabled()) {
+            if (debugEnabled && log.isDebugEnabled()) {
                 log.debug("Key not hot, skip publish. appName={}, key={}", appName, key);
             }
             return;
@@ -71,6 +72,10 @@ public final class HotKeyComputeTask {
                     appName, key, newHotKeys.size());
         }
         changePublisher.publish(result, Collections.singleton(key), null);
+    }
+
+    public static void setDebugEnabled(boolean enabled) {
+        debugEnabled = enabled;
     }
 
     static long getLastActiveTime(String instanceId, String key) {

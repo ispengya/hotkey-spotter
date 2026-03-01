@@ -16,15 +16,18 @@ public final class HotKeyServerProperties {
     private final Aggregator aggregator;
     private final Algorithm algorithm;
     private final Scheduler scheduler;
+    private final boolean debugEnabled;
 
     private HotKeyServerProperties(Server server,
                                    Aggregator aggregator,
                                    Algorithm algorithm,
-                                   Scheduler scheduler) {
+                                   Scheduler scheduler,
+                                   boolean debugEnabled) {
         this.server = server;
         this.aggregator = aggregator;
         this.algorithm = algorithm;
         this.scheduler = scheduler;
+        this.debugEnabled = debugEnabled;
     }
 
     public static HotKeyServerProperties load() {
@@ -68,7 +71,9 @@ public final class HotKeyServerProperties {
                 getLong(props, "scheduler.hotKeyIdleMillis", 60000L)
         );
 
-        return new HotKeyServerProperties(server, aggregator, algorithm, scheduler);
+        boolean debugEnabled = getBoolean(props, "logging.debugEnabled", false);
+
+        return new HotKeyServerProperties(server, aggregator, algorithm, scheduler, debugEnabled);
     }
 
     public Server getServer() {
@@ -85,6 +90,10 @@ public final class HotKeyServerProperties {
 
     public Scheduler getScheduler() {
         return scheduler;
+    }
+
+    public boolean isDebugEnabled() {
+        return debugEnabled;
     }
 
     private static int getInt(Properties props, String key, int defaultValue) {
@@ -111,6 +120,22 @@ public final class HotKeyServerProperties {
             log.warn("Invalid long for key {}, value {}. Using default {}", key, value, defaultValue);
             return defaultValue;
         }
+    }
+
+    private static boolean getBoolean(Properties props, String key, boolean defaultValue) {
+        String value = props.getProperty(key);
+        if (value == null || value.isEmpty()) {
+            return defaultValue;
+        }
+        String normalized = value.trim().toLowerCase();
+        if ("true".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized)) {
+            return true;
+        }
+        if ("false".equals(normalized) || "no".equals(normalized) || "off".equals(normalized)) {
+            return false;
+        }
+        log.warn("Invalid boolean for key {}, value {}. Using default {}", key, value, defaultValue);
+        return defaultValue;
     }
 
     public static final class Server {

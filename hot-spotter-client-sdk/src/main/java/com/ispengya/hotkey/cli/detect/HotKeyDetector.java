@@ -50,6 +50,10 @@ public class HotKeyDetector {
         this.reportPeriodMillis = reportPeriodMillis;
         this.hotKeySet = hotKeySet;
         this.transport.setPushListener(this::handlePush);
+        if (log.isInfoEnabled()) {
+            log.info("HotKeyDetector initialized. appName={}, reportPeriodMillis={}",
+                    appName, reportPeriodMillis);
+        }
     }
 
     public HotKeyDetector(HotKeyRemotingClient remotingClient,
@@ -68,6 +72,9 @@ public class HotKeyDetector {
                 reportPeriodMillis,
                 TimeUnit.MILLISECONDS
         );
+        if (log.isInfoEnabled()) {
+            log.info("HotKeyDetector started. reportPeriodMillis={}", reportPeriodMillis);
+        }
     }
 
     /**
@@ -75,6 +82,9 @@ public class HotKeyDetector {
      */
     public void stop() {
         scheduler.shutdown();
+        if (log.isInfoEnabled()) {
+            log.info("HotKeyDetector stopped.");
+        }
     }
 
     /**
@@ -104,6 +114,9 @@ public class HotKeyDetector {
             message.setTimestamp(timestamp);
             message.setKeyAccessCounts(counts);
             transport.reportAccess(message);
+            if (log.isInfoEnabled()) {
+                log.info("Reported access data. size={}", counts.size());
+            }
         } catch (Exception e) {
             log.error("Failed to report access data", e);
         }

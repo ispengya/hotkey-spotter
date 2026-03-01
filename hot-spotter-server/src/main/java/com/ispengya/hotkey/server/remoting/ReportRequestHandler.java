@@ -31,6 +31,7 @@ public final class ReportRequestHandler implements RequestHandler {
 
     private final Serializer serializer;
     private final AccessReportPipeline pipeline;
+    private final boolean debugEnabled;
 
     /**
      * 构造上报请求处理器。
@@ -42,9 +43,11 @@ public final class ReportRequestHandler implements RequestHandler {
      * @param pipeline        上报存储与消费管道
      */
     public ReportRequestHandler(Serializer serializer,
-                                AccessReportPipeline pipeline) {
+                                AccessReportPipeline pipeline,
+                                boolean debugEnabled) {
         this.serializer = serializer;
         this.pipeline = pipeline;
+        this.debugEnabled = debugEnabled;
     }
 
     @Override
@@ -56,6 +59,11 @@ public final class ReportRequestHandler implements RequestHandler {
             }
 
             Map<String, Integer> counts = message.getKeyAccessCounts();
+            if (debugEnabled && log.isDebugEnabled()) {
+                int size = counts == null ? 0 : counts.size();
+                log.debug("Receive access report. appName={}, keyCount={}",
+                        message.getAppName(), size);
+            }
             if (counts != null) {
                 for (Map.Entry<String, Integer> entry : counts.entrySet()) {
                     String key = entry.getKey();
