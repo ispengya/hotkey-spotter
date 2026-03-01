@@ -1,7 +1,7 @@
 package com.ispengya.hotkey.server;
 
 import com.ispengya.hotkey.remoting.protocol.CommandType;
-import com.ispengya.hotkey.remoting.protocol.JdkSerializer;
+import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.remoting.server.NettyServer;
 import com.ispengya.hotkey.remoting.server.NettyServerConfig;
@@ -74,7 +74,7 @@ public class HotKeyServerApplication {
 
         HotKeyComputeTask.setDebugEnabled(properties.isDebugEnabled());
 
-        Serializer serializer = new JdkSerializer();
+        Serializer serializer = new Fastjson2Serializer();
         HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer, properties.isDebugEnabled());
         AccessReportPipeline pipeline = new AccessReportPipeline(
                 windowRegistry,

@@ -1,7 +1,7 @@
 package com.ispengya.hotkey.cli.spring;
 
 import cn.hutool.core.collection.CollUtil;
-import com.ispengya.hotkey.remoting.protocol.JdkSerializer;
+import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hotkey.remoting.client.NettyClient;
@@ -70,7 +70,7 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Serializer hotkeySerializer() {
-        return new JdkSerializer();
+        return new Fastjson2Serializer();
     }
 
     @Bean
