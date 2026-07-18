@@ -1,16 +1,19 @@
 package com.ispengya.hotkey.server;
 
+import com.ispengya.hotkey.common.nacos.NacosConfigClient;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.remoting.server.NettyServer;
 import com.ispengya.hotkey.remoting.server.NettyServerConfig;
 import com.ispengya.hotkey.remoting.server.ServerChannelManager;
+import com.ispengya.hotkey.remoting.server.ServiceRegistration;
 import com.ispengya.hotkey.server.config.HotKeyServerProperties;
 import com.ispengya.hotkey.server.core.InstanceWindowRegistry;
 import com.ispengya.hotkey.server.core.InMemoryHotKeyResultStore;
 import com.ispengya.hotkey.server.core.HotKeyComputeAlgorithm;
 import com.ispengya.hotkey.server.core.AccessReportPipeline;
+import com.ispengya.hotkey.server.nacos.NacosIntegration;
 import com.ispengya.hotkey.server.remoting.DefaultServerRequestDispatcher;
 import com.ispengya.hotkey.server.remoting.HotKeyQueryHandler;
 import com.ispengya.hotkey.server.remoting.PingRequestHandler;
@@ -22,6 +25,7 @@ import com.ispengya.hotkey.server.scheduler.HotKeyChangePublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -107,8 +111,35 @@ public class HotKeyServerApplication {
                 properties.isDebugEnabled()
         );
 
-        // 6. Bootstrap
-        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, hotKeyScheduler);
+        // 6. Nacos Integration
+        NacosConfigClient nacosClient = new NacosConfigClient(
+                properties.getNacos().getServerAddr(),
+                properties.getNacos().getNamespace()
+        );
+        try {
+            nacosClient.init();
+        } catch (Exception e) {
+            log.error("Failed to initialize nacos client", e);
+            throw new RuntimeException("Failed to initialize nacos client", e);
+        }
+
+        String ip = getLocalIp();
+        int port = serverProps.getPort();
+        ServiceRegistration serviceRegistration = new ServiceRegistration(
+                nacosClient,
+                properties.getNacos().getServiceName(),
+                ip,
+                port
+        );
+
+        NacosIntegration nacosIntegration = new NacosIntegration(nacosClient, serviceRegistration);
+        nacosIntegration.setRuleChangeListener((appName, ruleConfig) -> {
+            algorithm.updateRuleConfig(ruleConfig);
+            log.info("Rule config updated for app: {}", appName);
+        });
+
+        // 7. Bootstrap
+        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, hotKeyScheduler, nacosIntegration);
         bootstrap.start();
 
         log.info("HotKey Server started on port {}", serverConfig.getPort());
@@ -119,5 +150,14 @@ public class HotKeyServerApplication {
             bootstrap.stop();
             log.info("HotKey Server stopped.");
         }));
+    }
+
+    private static String getLocalIp() {
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (Exception e) {
+            log.warn("Failed to get local IP, using 127.0.0.1", e);
+            return "127.0.0.1";
+        }
     }
 }

@@ -14,24 +14,27 @@
     <name>hot-spotter-serve</name>
 
     <dependencies>
+        <!-- hot-spotter-remoting -->
         <dependency>
             <groupId>com.ispengya</groupId>
             <artifactId>hot-spotter-remoting</artifactId>
             <version>${project.version}</version>
         </dependency>
-        
+        <!-- hot-spotter-cache -->
+        <dependency>
+            <groupId>com.ispengya</groupId>
+            <artifactId>hot-spotter-cache</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- Utils -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
-            <version>5.8.25</version>
         </dependency>
-
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.36</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>

@@ -16,17 +16,20 @@ public final class HotKeyServerProperties {
     private final Aggregator aggregator;
     private final Algorithm algorithm;
     private final Scheduler scheduler;
+    private final Nacos nacos;
     private final boolean debugEnabled;
 
     private HotKeyServerProperties(Server server,
                                    Aggregator aggregator,
                                    Algorithm algorithm,
                                    Scheduler scheduler,
+                                   Nacos nacos,
                                    boolean debugEnabled) {
         this.server = server;
         this.aggregator = aggregator;
         this.algorithm = algorithm;
         this.scheduler = scheduler;
+        this.nacos = nacos;
         this.debugEnabled = debugEnabled;
     }
 
@@ -71,9 +74,15 @@ public final class HotKeyServerProperties {
                 getLong(props, "scheduler.hotKeyIdleMillis", 60000L)
         );
 
+        Nacos nacos = new Nacos(
+                props.getProperty("nacos.serverAddr", "127.0.0.1:8848"),
+                props.getProperty("nacos.namespace", "public"),
+                props.getProperty("nacos.serviceName", "hot-spotter-server")
+        );
+
         boolean debugEnabled = getBoolean(props, "logging.debugEnabled", false);
 
-        return new HotKeyServerProperties(server, aggregator, algorithm, scheduler, debugEnabled);
+        return new HotKeyServerProperties(server, aggregator, algorithm, scheduler, nacos, debugEnabled);
     }
 
     public Server getServer() {
@@ -90,6 +99,10 @@ public final class HotKeyServerProperties {
 
     public Scheduler getScheduler() {
         return scheduler;
+    }
+
+    public Nacos getNacos() {
+        return nacos;
     }
 
     public boolean isDebugEnabled() {
@@ -277,6 +290,31 @@ public final class HotKeyServerProperties {
 
         public long getHotKeyIdleMillis() {
             return hotKeyIdleMillis;
+        }
+    }
+
+    public static final class Nacos {
+
+        private final String serverAddr;
+        private final String namespace;
+        private final String serviceName;
+
+        public Nacos(String serverAddr, String namespace, String serviceName) {
+            this.serverAddr = serverAddr;
+            this.namespace = namespace;
+            this.serviceName = serviceName;
+        }
+
+        public String getServerAddr() {
+            return serverAddr;
+        }
+
+        public String getNamespace() {
+            return namespace;
+        }
+
+        public String getServiceName() {
+            return serviceName;
         }
     }
 }
