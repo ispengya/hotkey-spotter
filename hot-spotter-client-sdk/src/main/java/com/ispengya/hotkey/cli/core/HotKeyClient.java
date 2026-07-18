@@ -55,14 +55,15 @@ public class HotKeyClient {
     /**
      * 判断是否是热 key。
      *
-     * <p>通过检查本地缓存中是否存在该 key 来判断。
+     * <p>通过检查本地缓存中是否存在未过期的该 key 来判断。
      * 热 key 由 Worker 推送时存入缓存。</p>
      *
      * @param key 业务 key
-     * @return true 如果是热 key
+     * @return true 如果是热 key 且未过期
      */
     public boolean isHotKey(String key) {
-        return cacheHolder.findCache(key).containsKey(key);
+        ValueModel model = cacheHolder.findCache(key).get(key);
+        return model != null && !model.isExpired();
     }
 
     /**
@@ -79,25 +80,19 @@ public class HotKeyClient {
      * @return 缓存的值，如果不存在或为标记值返回 null
      */
     public Object get(String key) {
-        boolean isHot = isHotKey(key);
-
-        if (!isHot) {
-            // 非热 key，记录访问用于上报
-            hotKeyDetector.recordAccess(key);
-            return null;
-        }
-
-        // 热 key，检查是否需要续期
         Cache cache = cacheHolder.findCache(key);
         ValueModel model = cache.get(key);
 
+        // 非热 key 或已过期
         if (model == null) {
+            hotKeyDetector.recordAccess(key);
             return null;
         }
 
         // 已过期，删除并返回 null
         if (model.isExpired()) {
             cache.evict(key);
+            hotKeyDetector.recordAccess(key);
             return null;
         }
 
