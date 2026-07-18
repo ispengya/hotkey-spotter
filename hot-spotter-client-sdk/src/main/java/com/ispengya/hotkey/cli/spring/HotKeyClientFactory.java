@@ -19,7 +19,8 @@ public class HotKeyClientFactory {
     public HotKeyClient createHotKeyClient(HotKeyDetector detector,
                                            HotKeySet hotKeySet,
                                            CacheTemplate cacheTemplate,
-                                           PostLoadAction postLoadAction) {
-        return new HotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction);
+                                           PostLoadAction postLoadAction,
+                                           String appName) {
+        return new HotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction, appName);
     }
 }

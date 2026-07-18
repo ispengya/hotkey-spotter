@@ -298,6 +298,8 @@ public class HotKeyAutoConfiguration {
      * @param detector         热 key 探测器
      * @param hotKeySet        热 key 视图
      * @param postLoadAction   后置处理回调
+     * @param cacheTemplate    缓存模板
+     * @param properties       配置属性
      * @return 默认 HotKeyClient 实例
      */
     @Bean(name = HotKeyBeanNames.DEFAULT_CLIENT)
@@ -305,10 +307,11 @@ public class HotKeyAutoConfiguration {
     public HotKeyClient hotkeyHotKeyClient(HotKeyDetector detector,
                                             HotKeySet hotKeySet,
                                             PostLoadAction postLoadAction,
-                                            CacheTemplate cacheTemplate) {
+                                            CacheTemplate cacheTemplate,
+                                            HotKeyProperties properties) {
         HotKeyClientFactory factory = new HotKeyClientFactory();
-        //        hotKeyClientManager.register("default", client);
-        return factory.createHotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction);
+        String appName = properties.getAppName();
+        return factory.createHotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction, appName);
     }
 
     private Class<?> resolveClass(String className, Class<?> defaultClass, Class<?> expectedType) {
