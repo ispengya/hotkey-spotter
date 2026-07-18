@@ -1,26 +1,33 @@
 package com.ispengya.hotkey.cli.spring;
 
-import com.ispengya.hotkey.cli.core.CacheTemplate;
+import com.ispengya.hotkey.cli.cache.HKCache;
 import com.ispengya.hotkey.cli.core.HotKeyClient;
-import com.ispengya.hotkey.cli.core.PostLoadAction;
 import com.ispengya.hotkey.cli.detect.HotKeyDetector;
-import com.ispengya.hotkey.cli.detect.HotKeySet;
 
 /**
  * HotKeyClientFactory 封装 HotKeyClient 的创建逻辑，
  * 便于在 Spring 自动装配或多实例场景下复用构建过程。
- *
- * 当前实现仅支持创建单实例的 HotKeyClient。
  *
  * @author ispengya
  */
 public class HotKeyClientFactory {
 
     public HotKeyClient createHotKeyClient(HotKeyDetector detector,
-                                           HotKeySet hotKeySet,
-                                           CacheTemplate cacheTemplate,
-                                           PostLoadAction postLoadAction,
+                                           HKCache<String, Object> cache,
                                            String appName) {
-        return new HotKeyClient(detector, hotKeySet, cacheTemplate, postLoadAction, appName);
+        HotKeyClient client = new HotKeyClient(detector, cache, appName);
+        // 设置热 key 监听器，将推送事件转发给 HotKeyClient
+        detector.setHotKeyListener(new HotKeyDetector.HotKeyListener() {
+            @Override
+            public void onHotKeyAdded(String key, long durationMillis) {
+                client.addHotKey(key, durationMillis);
+            }
+
+            @Override
+            public void onHotKeyRemoved(String key) {
+                client.removeHotKey(key);
+            }
+        });
+        return client;
     }
 }

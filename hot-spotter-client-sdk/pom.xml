@@ -24,11 +24,6 @@
             <groupId>com.ispengya</groupId>
             <artifactId>hot-spotter-remoting</artifactId>
         </dependency>
-        <!-- hot-spotter-cache -->
-        <dependency>
-            <groupId>com.ispengya</groupId>
-            <artifactId>hot-spotter-cache</artifactId>
-        </dependency>
         <!-- Caffeine -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>

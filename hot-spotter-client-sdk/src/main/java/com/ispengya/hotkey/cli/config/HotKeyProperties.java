@@ -110,12 +110,6 @@ public class HotKeyProperties {
 
         private Integer reportPoolSize = 2;
 
-        private String cacheTemplateClass;
-
-        private String localCacheClass;
-
-        private String safeLoadExecutorClass;
-
         private Long localCacheMaximumSize = 1000L;
 
         private Long localCacheExpireAfterWriteMillis = 5 * 60 * 1000L;
@@ -166,30 +160,6 @@ public class HotKeyProperties {
 
         public void setReportPoolSize(Integer reportPoolSize) {
             this.reportPoolSize = reportPoolSize;
-        }
-
-        public String getCacheTemplateClass() {
-            return cacheTemplateClass;
-        }
-
-        public void setCacheTemplateClass(String cacheTemplateClass) {
-            this.cacheTemplateClass = cacheTemplateClass;
-        }
-
-        public String getLocalCacheClass() {
-            return localCacheClass;
-        }
-
-        public void setLocalCacheClass(String localCacheClass) {
-            this.localCacheClass = localCacheClass;
-        }
-
-        public String getSafeLoadExecutorClass() {
-            return safeLoadExecutorClass;
-        }
-
-        public void setSafeLoadExecutorClass(String safeLoadExecutorClass) {
-            this.safeLoadExecutorClass = safeLoadExecutorClass;
         }
 
         public Long getLocalCacheMaximumSize() {

@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 /**
  * HotKeyDetector 负责采集访问轨迹和上报访问统计，
- * 并委托 HotKeyViewRefresher 同步最新的热 Key 视图。
+ * 并处理来自 Server 的热 Key 推送。
  *
  * <p>该类不直接感知底层通信协议，聚焦在采样和上报行为。</p>
  *
@@ -29,18 +29,37 @@ public class HotKeyDetector {
 
     private final ScheduledExecutorService scheduler;
     private final HotKeyTransport transport;
-    private final HotKeySet hotKeySet;
     private final AccessCounterCollector collector = new AccessCounterCollector();
     private final long reportPeriodMillis;
+    private HotKeyListener hotKeyListener;
+
+    /**
+     * 热 key 监听器接口。
+     */
+    public interface HotKeyListener {
+        /**
+         * 当收到热 key 添加事件时调用。
+         *
+         * @param key            热 key
+         * @param durationMillis 过期时长（毫秒）
+         */
+        void onHotKeyAdded(String key, long durationMillis);
+
+        /**
+         * 当收到热 key 删除事件时调用。
+         *
+         * @param key 热 key
+         */
+        void onHotKeyRemoved(String key);
+    }
 
     /**
      * 构造 HotKeyDetector。
      *
      * @param remotingClient 底层 Remoting 客户端
-     * @param hotKeySet      本地热 Key 视图
+     * @param appName        应用名称
      */
     public HotKeyDetector(HotKeyRemotingClient remotingClient,
-                          HotKeySet hotKeySet,
                           String appName,
                           long reportPeriodMillis,
                           long queryPeriodMillis,
@@ -48,7 +67,6 @@ public class HotKeyDetector {
         this.scheduler = Executors.newScheduledThreadPool(1);
         this.transport = new HotKeyTransport(remotingClient, appName);
         this.reportPeriodMillis = reportPeriodMillis;
-        this.hotKeySet = hotKeySet;
         this.transport.setPushListener(this::handlePush);
         if (log.isInfoEnabled()) {
             log.info("HotKeyDetector initialized. appName={}, reportPeriodMillis={}",
@@ -56,14 +74,21 @@ public class HotKeyDetector {
         }
     }
 
-    public HotKeyDetector(HotKeyRemotingClient remotingClient,
-                          HotKeySet hotKeySet,
-                          String appName) {
-        this(remotingClient, hotKeySet, appName, 500L, 30000L, 3000L);
+    public HotKeyDetector(HotKeyRemotingClient remotingClient, String appName) {
+        this(remotingClient, appName, 500L, 30000L, 3000L);
     }
 
     /**
-     * 启动探测器，包括定时上报任务和视图刷新任务。
+     * 设置热 key 监听器。
+     *
+     * @param listener 热 key 监听器
+     */
+    public void setHotKeyListener(HotKeyListener listener) {
+        this.hotKeyListener = listener;
+    }
+
+    /**
+     * 启动探测器，包括定时上报任务。
      */
     public void start() {
         scheduler.scheduleAtFixedRate(
@@ -141,15 +166,17 @@ public class HotKeyDetector {
             if (entry == null) {
                 return;
             }
-            boolean updated = false;
+            if (hotKeyListener == null) {
+                return;
+            }
             if (entry.getAddedKey() != null) {
-                updated |= hotKeySet.add(entry.getAddedKey());
+                long durationMillis = entry.getDuration() * 1000L; // 转换为毫秒
+                hotKeyListener.onHotKeyAdded(entry.getAddedKey(), durationMillis);
+                log.debug("Hot key added: key={}, durationMs={}", entry.getAddedKey(), durationMillis);
             }
             if (entry.getRemovedKey() != null) {
-                updated |= hotKeySet.remove(entry.getRemovedKey());
-            }
-            if (updated && log.isDebugEnabled()) {
-                log.debug("Updated hot keys for app {}", appName);
+                hotKeyListener.onHotKeyRemoved(entry.getRemovedKey());
+                log.debug("Hot key removed: key={}", entry.getRemovedKey());
             }
         });
     }

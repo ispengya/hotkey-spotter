@@ -14,7 +14,6 @@
         <module>hot-spotter-common</module>
         <module>hot-spotter-client-sdk</module>
         <module>hot-spotter-remoting</module>
-        <module>hot-spotter-cache</module>
         <module>hot-spotter-server</module>
         <module>hot-spotter-example</module>
     </modules>
@@ -94,11 +93,6 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-all</artifactId>
                 <version>${hutool.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ispengya</groupId>
-                <artifactId>hot-spotter-cache</artifactId>
-                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
