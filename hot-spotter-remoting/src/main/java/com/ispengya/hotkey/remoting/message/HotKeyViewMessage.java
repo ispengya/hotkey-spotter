@@ -17,6 +17,7 @@ public class HotKeyViewMessage implements Serializable {
         private Set<String> hotKeys;
         private String addedKey;
         private String removedKey;
+        private int duration; // 过期时长（秒）
 
         public ViewEntry() {
         }
@@ -56,6 +57,14 @@ public class HotKeyViewMessage implements Serializable {
 
         public void setRemovedKey(String removedKey) {
             this.removedKey = removedKey;
+        }
+
+        public int getDuration() {
+            return duration;
+        }
+
+        public void setDuration(int duration) {
+            this.duration = duration;
         }
     }
 

@@ -1,6 +1,6 @@
 package com.ispengya.hotkey.cli.spring;
 
-import com.ispengya.hotkey.cli.cache.HKCache;
+import com.ispengya.hotkey.cli.cache.CacheHolder;
 import com.ispengya.hotkey.cli.core.HotKeyClient;
 import com.ispengya.hotkey.cli.detect.HotKeyDetector;
 
@@ -12,15 +12,15 @@ import com.ispengya.hotkey.cli.detect.HotKeyDetector;
  */
 public class HotKeyClientFactory {
 
-    public HotKeyClient createHotKeyClient(HotKeyDetector detector,
-                                           HKCache<String, Object> cache,
-                                           String appName) {
-        HotKeyClient client = new HotKeyClient(detector, cache, appName);
+    public HotKeyClient createHotKeyClient(HotKeyDetector detector, String appName) {
+        CacheHolder cacheHolder = new CacheHolder(appName);
+        HotKeyClient client = new HotKeyClient(detector, cacheHolder);
+
         // 设置热 key 监听器，将推送事件转发给 HotKeyClient
         detector.setHotKeyListener(new HotKeyDetector.HotKeyListener() {
             @Override
-            public void onHotKeyAdded(String key, long durationMillis) {
-                client.addHotKey(key, durationMillis);
+            public void onHotKeyAdded(String key, int durationSeconds) {
+                client.addHotKey(key, durationSeconds);
             }
 
             @Override
@@ -28,6 +28,7 @@ public class HotKeyClientFactory {
                 client.removeHotKey(key);
             }
         });
+
         return client;
     }
 }

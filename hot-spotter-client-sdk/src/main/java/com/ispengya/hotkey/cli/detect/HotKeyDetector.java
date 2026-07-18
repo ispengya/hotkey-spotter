@@ -40,10 +40,10 @@ public class HotKeyDetector {
         /**
          * 当收到热 key 添加事件时调用。
          *
-         * @param key            热 key
-         * @param durationMillis 过期时长（毫秒）
+         * @param key             热 key
+         * @param durationSeconds 过期时长（秒）
          */
-        void onHotKeyAdded(String key, long durationMillis);
+        void onHotKeyAdded(String key, int durationSeconds);
 
         /**
          * 当收到热 key 删除事件时调用。
@@ -170,9 +170,9 @@ public class HotKeyDetector {
                 return;
             }
             if (entry.getAddedKey() != null) {
-                long durationMillis = entry.getDuration() * 1000L; // 转换为毫秒
-                hotKeyListener.onHotKeyAdded(entry.getAddedKey(), durationMillis);
-                log.debug("Hot key added: key={}, durationMs={}", entry.getAddedKey(), durationMillis);
+                int durationSeconds = entry.getDuration();
+                hotKeyListener.onHotKeyAdded(entry.getAddedKey(), durationSeconds);
+                log.debug("Hot key added: key={}, durationSeconds={}", entry.getAddedKey(), durationSeconds);
             }
             if (entry.getRemovedKey() != null) {
                 hotKeyListener.onHotKeyRemoved(entry.getRemovedKey());

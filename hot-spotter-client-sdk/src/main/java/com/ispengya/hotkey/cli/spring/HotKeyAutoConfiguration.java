@@ -1,9 +1,9 @@
 package com.ispengya.hotkey.cli.spring;
 
 import cn.hutool.core.collection.CollUtil;
-import com.ispengya.hotkey.cli.cache.HKCache;
-import com.ispengya.hotkey.cli.cache.HKCaffeineCache;
 import com.ispengya.hotkey.common.nacos.NacosConfigClient;
+import com.ispengya.hotkey.common.rule.RuleConfig;
+import com.ispengya.hotkey.cli.rule.RuleHolder;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
@@ -73,6 +73,26 @@ public class HotKeyAutoConfiguration {
             log.error("Failed to initialize NacosConfigClient", e);
             throw new RuntimeException("Failed to initialize NacosConfigClient", e);
         }
+
+        // 添加规则变更监听器，同步更新 RuleHolder
+        client.addRuleChangeListener(new NacosConfigClient.RuleChangeListener() {
+            @Override
+            public void onRuleChange(String appName, RuleConfig ruleConfig) {
+                RuleHolder.updateRuleConfig(appName, ruleConfig);
+                log.info("RuleHolder updated for app: {}", appName);
+            }
+        });
+
+        // 加载已有的规则配置
+        String appName = properties.getAppName();
+        if (appName != null && !appName.isEmpty()) {
+            RuleConfig existingConfig = client.getCachedRuleConfig(appName);
+            if (existingConfig != null) {
+                RuleHolder.updateRuleConfig(appName, existingConfig);
+                log.info("Loaded existing rule config for app: {}", appName);
+            }
+        }
+
         return client;
     }
 
@@ -158,15 +178,6 @@ public class HotKeyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HKCache<String, Object> hotkeyLocalCache(HotKeyProperties properties) {
-        HotKeyProperties.ClientConfig client = properties.getClient();
-        long maximumSize = client.getLocalCacheMaximumSize();
-        long expireMillis = client.getLocalCacheExpireAfterWriteMillis();
-        return new HKCaffeineCache<>("hotkey-local", maximumSize, expireMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public HotKeyDetector hotkeyHotKeyDetector(HotKeyProperties properties,
                                                 HotKeyRemotingClient remotingClient) {
         HotKeyProperties.DetectConfig detectConfig = properties.getDetect();
@@ -222,11 +233,10 @@ public class HotKeyAutoConfiguration {
     @Bean(name = HotKeyBeanNames.DEFAULT_CLIENT)
     @ConditionalOnMissingBean
     public HotKeyClient hotkeyHotKeyClient(HotKeyDetector detector,
-                                            HKCache<String, Object> hotkeyLocalCache,
                                             HotKeyProperties properties) {
         HotKeyClientFactory factory = new HotKeyClientFactory();
         String appName = properties.getAppName();
-        return factory.createHotKeyClient(detector, hotkeyLocalCache, appName);
+        return factory.createHotKeyClient(detector, appName);
     }
 
     private Class<?> resolveClass(String className, Class<?> defaultClass, Class<?> expectedType) {
