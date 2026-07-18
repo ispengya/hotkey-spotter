@@ -103,27 +103,7 @@ public interface NacosClient {
     Map<String, RuleConfig> getAllCachedRuleConfigs();
 
     /**
-     * 添加规则变更监听器。
-     *
-     * @param listener 监听器
-     */
-    void addRuleChangeListener(RuleChangeListener listener);
-
-    /**
      * 关闭客户端。
      */
     void shutdown();
-
-    /**
-     * 规则变更监听器接口。
-     */
-    interface RuleChangeListener {
-        /**
-         * 规则变更回调。
-         *
-         * @param appName    应用名称
-         * @param ruleConfig 新的规则配置
-         */
-        void onRuleChange(String appName, RuleConfig ruleConfig);
-    }
 }

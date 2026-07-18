@@ -5,8 +5,7 @@ import com.ispengya.hotkey.cli.bootstrap.HotKeyBootstrap;
 import com.ispengya.hotkey.cli.cache.CacheHolder;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.detect.HotKeyReporter;
-import com.ispengya.hotkey.cli.nacos.NacosRegistry;
-import com.ispengya.hotkey.cli.nacos.WorkerDiscovery;
+import com.ispengya.hotkey.cli.nacos.NacosBridge;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
@@ -45,12 +44,20 @@ public class HotKeyAutoConfiguration {
         return new EventBus();
     }
 
-    // ==================== 注册中心 ====================
+    // ==================== Nacos 桥接 ====================
 
     @Bean
     @ConditionalOnMissingBean
-    public NacosRegistry hotkeyNacosRegistry(HotKeyProperties properties, EventBus eventBus) {
-        return new NacosRegistry(properties, eventBus);
+    public NacosBridge hotkeyNacosBridge(HotKeyProperties properties, EventBus eventBus) {
+        HotKeyProperties.NacosConfig nacos = properties.getNacos();
+
+        // group 不配时自动使用 appName，保证 Nacos 三层结构：
+        // namespace(环境) / group(服务) / dataId(配置类型)
+        if (nacos.getGroup() == null || nacos.getGroup().isBlank()) {
+            nacos.setGroup(properties.getAppName());
+        }
+
+        return new NacosBridge(nacos.getServerAddr(), nacos.getNamespace(), eventBus);
     }
 
     // ==================== 通信层 ====================
@@ -64,10 +71,9 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hotkeyNettyClient(HotKeyProperties properties,
-                                          NacosRegistry nacosRegistry,
+                                          NacosBridge nacosBridge,
                                           EventBus eventBus) {
-        WorkerDiscovery workerDiscovery = nacosRegistry.getWorkerDiscovery();
-        List<InetSocketAddress> serverAddresses = workerDiscovery.getWorkerAddresses();
+        List<InetSocketAddress> serverAddresses = nacosBridge.getWorkerAddresses();
 
         if (serverAddresses.isEmpty()) {
             throw new IllegalStateException("No workers found from nacos");
@@ -145,19 +151,17 @@ public class HotKeyAutoConfiguration {
     @ConditionalOnMissingBean
     public HotKeyBootstrap hotkeyBootstrap(HotKeyProperties properties,
                                             EventBus eventBus,
-                                            NacosRegistry nacosRegistry,
+                                            NacosBridge nacosBridge,
                                             NettyClient nettyClient,
                                             HotKeyRemotingClient remotingClient,
-                                            HotKeyReporter reporter,
-                                            HotKeyClient hotKeyClient) {
+                                            HotKeyReporter reporter) {
         HotKeyBootstrap bootstrap = new HotKeyBootstrap(
                 properties,
                 eventBus,
-                nacosRegistry,
+                nacosBridge,
                 nettyClient,
                 remotingClient,
-                reporter,
-                hotKeyClient
+                reporter
         );
         bootstrap.start();
         return bootstrap;

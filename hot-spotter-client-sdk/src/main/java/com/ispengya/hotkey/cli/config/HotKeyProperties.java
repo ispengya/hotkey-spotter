@@ -171,7 +171,11 @@ public class HotKeyProperties {
 
         private String dataId = "hotkey-rules";
 
-        private String group = "DEFAULT_GROUP";
+        /**
+         * Nacos 配置分组。不配时自动使用 {@code hotkey.app-name}。
+         * 多个服务实例共享同一套规则时，可显式指定同一个 group。
+         */
+        private String group;
 
         public boolean isEnabled() {
             return enabled;
