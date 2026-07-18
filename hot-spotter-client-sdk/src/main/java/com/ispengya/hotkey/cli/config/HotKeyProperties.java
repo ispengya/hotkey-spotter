@@ -21,6 +21,8 @@ public class HotKeyProperties {
 
     private ClientConfig client = new ClientConfig();
 
+    private NacosConfig nacos = new NacosConfig();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -51,6 +53,14 @@ public class HotKeyProperties {
 
     public void setClient(ClientConfig client) {
         this.client = client;
+    }
+
+    public NacosConfig getNacos() {
+        return nacos;
+    }
+
+    public void setNacos(NacosConfig nacos) {
+        this.nacos = nacos;
     }
 
     public static class DetectConfig {
@@ -196,6 +206,49 @@ public class HotKeyProperties {
 
         public void setLocalCacheExpireAfterWriteMillis(Long localCacheExpireAfterWriteMillis) {
             this.localCacheExpireAfterWriteMillis = localCacheExpireAfterWriteMillis;
+        }
+    }
+
+    public static class NacosConfig {
+
+        private boolean enabled = false;
+
+        private String serverAddr = "127.0.0.1:8848";
+
+        private String namespace = "public";
+
+        private String serviceName = "hot-spotter-server";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getServerAddr() {
+            return serverAddr;
+        }
+
+        public void setServerAddr(String serverAddr) {
+            this.serverAddr = serverAddr;
+        }
+
+        public String getNamespace() {
+            return namespace;
+        }
+
+        public void setNamespace(String namespace) {
+            this.namespace = namespace;
+        }
+
+        public String getServiceName() {
+            return serviceName;
+        }
+
+        public void setServiceName(String serviceName) {
+            this.serviceName = serviceName;
         }
     }
 }

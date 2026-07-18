@@ -14,32 +14,37 @@
     <name>hot-spotter-client-sdk</name>
 
     <dependencies>
+        <!-- hot-spotter-common -->
+        <dependency>
+            <groupId>com.ispengya</groupId>
+            <artifactId>hot-spotter-common</artifactId>
+        </dependency>
+        <!-- hot-spotter-remoting -->
+        <dependency>
+            <groupId>com.ispengya</groupId>
+            <artifactId>hot-spotter-remoting</artifactId>
+        </dependency>
+        <!-- hot-spotter-cache -->
+        <dependency>
+            <groupId>com.ispengya</groupId>
+            <artifactId>hot-spotter-cache</artifactId>
+        </dependency>
+        <!-- Caffeine -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
-
+        <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
-
-        <dependency>
-            <groupId>com.ispengya</groupId>
-            <artifactId>hot-spotter-common</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.ispengya</groupId>
-            <artifactId>hot-spotter-remoting</artifactId>
-        </dependency>
-
+        <!-- Commons -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
