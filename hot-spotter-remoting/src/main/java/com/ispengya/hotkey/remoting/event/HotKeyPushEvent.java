@@ -1,4 +1,4 @@
-package com.ispengya.hotkey.cli.event;
+package com.ispengya.hotkey.remoting.event;
 
 import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
 
@@ -7,11 +7,11 @@ import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
  *
  * @author ispengya
  */
-public final class HotKeyEvent {
+public class HotKeyPushEvent {
 
     private final HotKeyViewMessage message;
 
-    public HotKeyEvent(HotKeyViewMessage message) {
+    public HotKeyPushEvent(HotKeyViewMessage message) {
         this.message = message;
     }
 

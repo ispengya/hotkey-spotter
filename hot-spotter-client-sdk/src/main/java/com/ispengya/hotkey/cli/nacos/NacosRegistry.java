@@ -1,9 +1,9 @@
 package com.ispengya.hotkey.cli.nacos;
 
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
-import com.ispengya.hotkey.cli.event.EventBus;
-import com.ispengya.hotkey.cli.event.RuleChangeEvent;
-import com.ispengya.hotkey.cli.event.WorkerChangeEvent;
+import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.common.event.RuleChangeEvent;
+import com.ispengya.hotkey.common.event.WorkerChangeEvent;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

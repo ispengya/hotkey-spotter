@@ -1,22 +1,39 @@
 package com.ispengya.hotkey.remoting.client;
 
+import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.remoting.event.HotKeyPushEvent;
+import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
 import com.ispengya.hotkey.remoting.protocol.Command;
+import com.ispengya.hotkey.remoting.protocol.CommandType;
+import com.ispengya.hotkey.remoting.protocol.Serializer;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
+/**
+ * 客户端入站处理器。
+ *
+ * <p>收到推送消息时，直接通过 EventBus 发布事件，不再使用 Consumer 回调。</p>
+ *
+ * @author ispengya
+ */
 public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
+
+    private static final Logger log = LoggerFactory.getLogger(ClientInboundHandler.class);
 
     private static final Map<Long, CompletableFuture<Command>> FUTURES = new ConcurrentHashMap<>();
 
-    private static volatile Consumer<Command> pushHandler;
+    private static volatile EventBus eventBus;
+    private static volatile Serializer serializer;
 
-    public static void setPushHandler(Consumer<Command> handler) {
-        pushHandler = handler;
+    public static void init(EventBus eventBus, Serializer serializer) {
+        ClientInboundHandler.eventBus = eventBus;
+        ClientInboundHandler.serializer = serializer;
     }
 
     public static void registerFuture(long requestId, CompletableFuture<Command> future) {
@@ -34,6 +51,8 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Command msg) {
         long requestId = msg.getRequestId();
+
+        // 同步响应
         if (requestId != 0L) {
             CompletableFuture<Command> future = FUTURES.remove(requestId);
             if (future != null) {
@@ -41,14 +60,25 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
                 return;
             }
         }
-        Consumer<Command> handler = pushHandler;
-        if (handler != null) {
-            handler.accept(msg);
+
+        // 推送消息 -> 发布到 EventBus
+        if (msg.getType() == CommandType.HOT_KEY_PUSH) {
+            EventBus bus = eventBus;
+            Serializer ser = serializer;
+            if (bus != null && ser != null) {
+                try {
+                    HotKeyViewMessage message = ser.deserialize(msg.getPayload(), HotKeyViewMessage.class);
+                    bus.post(new HotKeyPushEvent(message));
+                } catch (Exception e) {
+                    log.error("Failed to deserialize push message", e);
+                }
+            }
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("Channel exception", cause);
         ctx.close();
     }
 }

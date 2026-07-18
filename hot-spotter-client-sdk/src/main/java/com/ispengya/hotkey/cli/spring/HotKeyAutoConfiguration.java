@@ -5,9 +5,9 @@ import com.ispengya.hotkey.cli.bootstrap.HotKeyBootstrap;
 import com.ispengya.hotkey.cli.cache.CacheHolder;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.detect.HotKeyReporter;
-import com.ispengya.hotkey.cli.event.EventBus;
 import com.ispengya.hotkey.cli.nacos.NacosRegistry;
 import com.ispengya.hotkey.cli.nacos.WorkerDiscovery;
+import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hotkey.remoting.client.NettyClient;
@@ -64,7 +64,8 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hotkeyNettyClient(HotKeyProperties properties,
-                                          NacosRegistry nacosRegistry) {
+                                          NacosRegistry nacosRegistry,
+                                          EventBus eventBus) {
         WorkerDiscovery workerDiscovery = nacosRegistry.getWorkerDiscovery();
         List<InetSocketAddress> serverAddresses = workerDiscovery.getWorkerAddresses();
 
@@ -80,7 +81,7 @@ public class HotKeyAutoConfiguration {
                 clientConfig.getMaxFrameBytes(),
                 properties.getAppName()
         );
-        return new NettyClient(config);
+        return new NettyClient(config, eventBus);
     }
 
     @Bean
@@ -102,14 +103,16 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public HotKeyReporter hotkeyHotKeyReporter(HotKeyProperties properties,
-                                                HotKeyRemotingClient remotingClient) {
+                                                HotKeyRemotingClient remotingClient,
+                                                EventBus eventBus) {
         HotKeyProperties.DetectConfig detectConfig = properties.getDetect();
         return new HotKeyReporter(
                 remotingClient,
                 properties.getAppName(),
                 detectConfig.getReportPeriodMillis(),
                 detectConfig.getQueryPeriodMillis(),
-                detectConfig.getQueryTimeoutMillis()
+                detectConfig.getQueryTimeoutMillis(),
+                eventBus
         );
     }
 

@@ -1,14 +1,14 @@
-package com.ispengya.hotkey.cli.event;
+package com.ispengya.hotkey.common.event;
 
 import java.net.InetSocketAddress;
 import java.util.List;
 
 /**
- * Worker 节点变更事件。
+ * Worker 地址变更事件。
  *
  * @author ispengya
  */
-public final class WorkerChangeEvent {
+public class WorkerChangeEvent {
 
     private final List<InetSocketAddress> workers;
 

@@ -1,6 +1,8 @@
 package com.ispengya.hotkey.remoting.client;
 
+import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.codec.CommandDecoder;
+import com.ispengya.hotkey.common.event.WorkerChangeEvent;
 import com.ispengya.hotkey.remoting.codec.CommandEncoder;
 import com.ispengya.hotkey.remoting.protocol.Command;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
@@ -40,6 +42,11 @@ public final class NettyClient {
     private final NettyClientConfig config;
 
     /**
+     * 事件总线。
+     */
+    private final EventBus eventBus;
+
+    /**
      * worker 事件循环组。
      */
     private EventLoopGroup workerGroup;
@@ -54,14 +61,21 @@ public final class NettyClient {
      */
     private final CopyOnWriteArrayList<WorkerInfo> workers = new CopyOnWriteArrayList<>();
 
-    public NettyClient(NettyClientConfig config) {
+    public NettyClient(NettyClientConfig config, EventBus eventBus) {
         this.config = config;
+        this.eventBus = eventBus;
     }
 
     /**
      * 初始化 Netty 客户端。
      */
     public void start() {
+        // 监听 Worker 地址变更
+        eventBus.register(WorkerChangeEvent.class, event -> {
+            log.info("Worker change detected: {}", event.getWorkers());
+            mergeAndConnect(event.getWorkers());
+        });
+
         workerGroup = new NioEventLoopGroup(config.getWorkerThreads());
         bootstrap = new Bootstrap();
         bootstrap.group(workerGroup)
@@ -192,18 +206,6 @@ public final class NettyClient {
             // 连接失败也记录，后续重试
             workers.add(new WorkerInfo(address, null));
         }
-    }
-
-    /**
-     * 处理 Worker 地址变更事件。
-     *
-     * <p>由 EventBus 调用。</p>
-     *
-     * @param newAddresses 新的 Worker 地址列表
-     */
-    public void onWorkerChange(List<InetSocketAddress> newAddresses) {
-        log.info("Worker change detected: {}", newAddresses);
-        mergeAndConnect(newAddresses);
     }
 
     /**

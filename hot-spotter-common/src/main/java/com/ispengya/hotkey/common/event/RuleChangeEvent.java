@@ -1,4 +1,4 @@
-package com.ispengya.hotkey.cli.event;
+package com.ispengya.hotkey.common.event;
 
 import com.ispengya.hotkey.common.rule.RuleConfig;
 

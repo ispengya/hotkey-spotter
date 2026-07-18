@@ -1,4 +1,4 @@
-package com.ispengya.hotkey.cli.event;
+package com.ispengya.hotkey.common.event;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
