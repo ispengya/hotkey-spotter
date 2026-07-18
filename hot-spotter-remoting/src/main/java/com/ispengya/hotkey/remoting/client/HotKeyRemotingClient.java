@@ -32,10 +32,18 @@ public final class HotKeyRemotingClient {
         this.appName = appName;
     }
 
-    public void reportAccess(AccessReportMessage message) {
+    public void reportAccess(String appName, String key, int count, long timestamp) {
+        Map<String, Integer> counts = new HashMap<>();
+        counts.put(key, count);
+
+        AccessReportMessage message = new AccessReportMessage();
+        message.setAppName(appName);
+        message.setTimestamp(timestamp);
+        message.setKeyAccessCounts(counts);
+
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.ACCESS_REPORT, bytes);
-        sender.sendOneWay(command);
+        sender.sendOneWay(command, key);  // 按 key hash 路由到对应 Worker
     }
 
     public void registerPushChannel() {

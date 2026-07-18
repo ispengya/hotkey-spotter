@@ -47,18 +47,18 @@ public final class HotKeyBootstrap {
     public void start() {
         log.info("Starting HotKey client...");
 
-        // 1. 初始化 Nacos 连接
+        // 1. 初始化 Nacos 连接（创建 ConfigService / NamingService）
         nacosBridge.init();
 
-        // 2. 同步规则配置
+        // 2. 启动 Netty（先注册 WorkerChangeEvent 监听，再触发 Worker 发现）
+        nettyClient.start();
+
+        // 3. 同步规则配置
         HotKeyProperties.NacosConfig nacos = properties.getNacos();
         nacosBridge.syncRules(nacos.getDataId(), nacos.getGroup(), properties.getAppName());
 
-        // 3. 启动 Worker 发现（首次拉取 + 订阅 + 定时兜底）
+        // 4. 启动 Worker 发现 → 发布 WorkerChangeEvent → NettyClient 收到后懒建连
         nacosBridge.startWorkerDiscovery(nacos.getServiceName());
-
-        // 4. 启动 Netty（监听 WorkerChangeEvent，连接初始 Worker）
-        nettyClient.start();
 
         // 5. 注册推送通道
         remotingClient.registerPushChannel();

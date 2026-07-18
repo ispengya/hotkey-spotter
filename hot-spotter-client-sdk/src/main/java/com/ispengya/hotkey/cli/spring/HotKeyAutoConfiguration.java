@@ -10,7 +10,6 @@ import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hotkey.remoting.client.NettyClient;
-import com.ispengya.hotkey.remoting.client.NettyClientConfig;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import org.slf4j.Logger;
@@ -19,10 +18,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Configuration;
-
-import java.net.InetSocketAddress;
-import java.util.List;
 
 /**
  * HotKey 自动配置类。
@@ -53,7 +50,7 @@ public class HotKeyAutoConfiguration {
 
         // group 不配时自动使用 appName，保证 Nacos 三层结构：
         // namespace(环境) / group(服务) / dataId(配置类型)
-        if (nacos.getGroup() == null || nacos.getGroup().isBlank()) {
+        if (nacos.getGroup() == null || StringUtils.isBlank(nacos.getGroup())) {
             nacos.setGroup(properties.getAppName());
         }
 
@@ -71,23 +68,14 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hotkeyNettyClient(HotKeyProperties properties,
-                                          NacosBridge nacosBridge,
                                           EventBus eventBus) {
-        List<InetSocketAddress> serverAddresses = nacosBridge.getWorkerAddresses();
-
-        if (serverAddresses.isEmpty()) {
-            throw new IllegalStateException("No workers found from nacos");
-        }
-
         HotKeyProperties.ClientConfig clientConfig = properties.getClient();
-        NettyClientConfig config = new NettyClientConfig(
-                serverAddresses,
+        return new NettyClient(
                 clientConfig.getConnectTimeoutMillis(),
                 clientConfig.getWorkerThreads(),
                 clientConfig.getMaxFrameBytes(),
-                properties.getAppName()
+                eventBus
         );
-        return new NettyClient(config, eventBus);
     }
 
     @Bean

@@ -3,7 +3,6 @@ package com.ispengya.hotkey.cli.detect;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.event.HotKeyPushEvent;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
-import com.ispengya.hotkey.remoting.message.AccessReportMessage;
 import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,11 +100,10 @@ public class HotKeyReporter {
             }
 
             long timestamp = System.currentTimeMillis();
-            AccessReportMessage message = new AccessReportMessage();
-            message.setTimestamp(timestamp);
-            message.setKeyAccessCounts(counts);
-            message.setAppName(appName);
-            remotingClient.reportAccess(message);
+            for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+                // 每个 key 单独上报，hash 路由保证同一 key 落到同一台 Worker
+                remotingClient.reportAccess(appName, entry.getKey(), entry.getValue(), timestamp);
+            }
             log.debug("Reported access data. size={}", counts.size());
         } catch (Exception e) {
             log.error("Failed to report access data", e);

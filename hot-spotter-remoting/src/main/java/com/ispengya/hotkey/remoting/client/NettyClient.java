@@ -1,11 +1,9 @@
 package com.ispengya.hotkey.remoting.client;
 
 import com.ispengya.hotkey.common.event.EventBus;
-import com.ispengya.hotkey.remoting.codec.CommandDecoder;
 import com.ispengya.hotkey.common.event.WorkerChangeEvent;
+import com.ispengya.hotkey.remoting.codec.CommandDecoder;
 import com.ispengya.hotkey.remoting.codec.CommandEncoder;
-import com.ispengya.hotkey.remoting.protocol.Command;
-import com.ispengya.hotkey.remoting.protocol.CommandType;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -16,17 +14,19 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 
 /**
- * NettyClient 封装基于 Netty 的客户端连接管理。
+ * Netty 客户端，管理与 Worker 的长连接。
  *
- * <p>参考 hotkey 项目设计：
+ * <p>核心设计：
  * <ul>
- *     <li>每个 Worker 一个 Channel，双向通信</li>
- *     <li>按 key hash 选择 Channel，保证同一 key 总是发到同一 Worker</li>
- *     <li>支持动态增减 Worker</li>
+ *     <li><b>懒建连</b>：只有对某台 Worker 有数据要发时才建立连接，
+ *         而不是启动时连上所有 Worker</li>
+ *     <li><b>Hash 路由</b>：同一 key 在所有客户端上 hash 到同一台 Worker</li>
+ *     <li><b>Worker 变更</b>：监听 WorkerChangeEvent，更新地址列表，
+ *         断开已下线的 Worker Channel，新 Worker 懒建连</li>
  * </ul>
  * </p>
  *
@@ -36,239 +36,171 @@ public final class NettyClient {
 
     private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
 
-    /**
-     * 客户端配置。
-     */
-    private final NettyClientConfig config;
-
-    /**
-     * 事件总线。
-     */
     private final EventBus eventBus;
+    private final int connectTimeoutMillis;
+    private final int workerThreads;
+    private final int maxFrameLength;
 
-    /**
-     * worker 事件循环组。
-     */
     private EventLoopGroup workerGroup;
-
-    /**
-     * Netty Bootstrap 实例。
-     */
     private Bootstrap bootstrap;
 
     /**
-     * Worker 列表（有序，用于 hash 路由）。
+     * 排序后的 Worker 地址列表（保证 hash 路由一致性），
+     * 由 WorkerChangeEvent 更新。
      */
-    private final CopyOnWriteArrayList<WorkerInfo> workers = new CopyOnWriteArrayList<>();
+    private volatile List<InetSocketAddress> sortedWorkers = Collections.emptyList();
 
-    public NettyClient(NettyClientConfig config, EventBus eventBus) {
-        this.config = config;
+    /**
+     * 懒建连 Channel 缓存：地址 → Channel。
+     */
+    private final ConcurrentHashMap<InetSocketAddress, Channel> channelMap = new ConcurrentHashMap<>();
+
+    public NettyClient(int connectTimeoutMillis, int workerThreads, int maxFrameLength, EventBus eventBus) {
+        this.connectTimeoutMillis = connectTimeoutMillis;
+        this.workerThreads = workerThreads;
+        this.maxFrameLength = maxFrameLength;
         this.eventBus = eventBus;
     }
 
     /**
-     * 初始化 Netty 客户端。
+     * 启动：注册 WorkerChangeEvent 监听，初始化 Bootstrap。
      */
     public void start() {
-        // 监听 Worker 地址变更
         eventBus.register(WorkerChangeEvent.class, event -> {
-            log.info("Worker change detected: {}", event.getWorkers());
-            mergeAndConnect(event.getWorkers());
+            onWorkerChange(event.getWorkers());
         });
 
-        workerGroup = new NioEventLoopGroup(config.getWorkerThreads());
+        workerGroup = new NioEventLoopGroup(workerThreads);
         bootstrap = new Bootstrap();
         bootstrap.group(workerGroup)
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.TCP_NODELAY, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getConnectTimeoutMillis())
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMillis)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ChannelPipeline p = ch.pipeline();
-                        p.addLast(new CommandDecoder(config.getMaxFrameLength()));
+                        p.addLast(new CommandDecoder(maxFrameLength));
                         p.addLast(new CommandEncoder());
                         p.addLast(new ClientInboundHandler());
                     }
                 });
 
-        // 连接初始 Worker
-        List<InetSocketAddress> addresses = config.getServerAddresses();
-        if (addresses != null && !addresses.isEmpty()) {
-            connect(addresses);
-        }
-
-        // 心跳
-        workerGroup.next().scheduleAtFixedRate(this::heartbeat, 30, 30, TimeUnit.SECONDS);
-
-        log.info("NettyClient started, workers={}", workers);
+        log.info("NettyClient started");
     }
 
+    // ==================== 路由选择 ====================
+
     /**
-     * 根据 key 选择 Channel（hash 路由）。
+     * 根据 key hash 选择对应的 Worker Channel，不存在则懒建连。
      *
      * @param key 业务 key
-     * @return Channel，如果没有可用 Worker 返回 null
+     * @return Channel，无可用 Worker 时返回 null
      */
     public Channel chooseChannel(String key) {
-        int size = workers.size();
-        if (size == 0) {
+        List<InetSocketAddress> workers = this.sortedWorkers;
+        if (workers.isEmpty()) {
             return null;
         }
-        int index = Math.abs(key.hashCode() % size);
-        WorkerInfo worker = workers.get(index);
-        return worker.channel;
+        int index = Math.abs(key.hashCode() % workers.size());
+        return getOrConnect(workers.get(index));
     }
 
     /**
-     * 获取任意一个可用 Channel。
+     * 获取任意一个可用 Channel（用于不关心路由的操作：推送通道注册、查询等）。
      *
-     * @return Channel，如果没有可用 Worker 返回 null
+     * @return Channel，无可用 Worker 时返回 null
      */
     public Channel pickChannel() {
-        for (WorkerInfo worker : workers) {
-            if (worker.channel != null && worker.channel.isActive()) {
-                return worker.channel;
+        // 优先复用已有连接
+        for (Map.Entry<InetSocketAddress, Channel> entry : channelMap.entrySet()) {
+            Channel ch = entry.getValue();
+            if (ch != null && ch.isActive()) {
+                return ch;
             }
         }
-        return null;
+        // 没有已有连接，懒连第一台
+        List<InetSocketAddress> workers = this.sortedWorkers;
+        if (workers.isEmpty()) {
+            return null;
+        }
+        return getOrConnect(workers.get(0));
     }
 
+    // ==================== 连接管理（内部） ====================
+
     /**
-     * 连接到新的 Worker 地址列表。
-     *
-     * <p>合并新旧地址：移除不再需要的，连接新增的。</p>
-     *
-     * @param newAddresses 新的 Worker 地址列表
+     * 获取或懒建连到指定 Worker 的 Channel。
      */
-    public synchronized void mergeAndConnect(List<InetSocketAddress> newAddresses) {
-        // 1. 移除不再需要的 Worker
-        Set<String> newAddressSet = new HashSet<>();
-        for (InetSocketAddress addr : newAddresses) {
-            newAddressSet.add(addr.getHostString() + ":" + addr.getPort());
+    private Channel getOrConnect(InetSocketAddress address) {
+        Channel channel = channelMap.get(address);
+        if (channel != null && channel.isActive()) {
+            return channel;
         }
 
-        Iterator<WorkerInfo> it = workers.iterator();
-        while (it.hasNext()) {
-            WorkerInfo worker = it.next();
-            String addrStr = worker.address.getHostString() + ":" + worker.address.getPort();
-            if (!newAddressSet.contains(addrStr)) {
-                log.info("Removing worker: {}", addrStr);
-                if (worker.channel != null) {
-                    worker.channel.close();
-                }
-                workers.remove(worker);
+        synchronized (this) {
+            channel = channelMap.get(address);
+            if (channel != null && channel.isActive()) {
+                return channel;
             }
-        }
 
-        // 2. 连接新增的 Worker
-        Set<String> existingSet = new HashSet<>();
-        for (WorkerInfo worker : workers) {
-            existingSet.add(worker.address.getHostString() + ":" + worker.address.getPort());
-        }
-
-        for (InetSocketAddress addr : newAddresses) {
-            String addrStr = addr.getHostString() + ":" + addr.getPort();
-            if (!existingSet.contains(addrStr)) {
-                connectOne(addr);
-            }
-        }
-
-        // 3. 排序（保证 hash 路由一致性）
-        workers.sort(Comparator.comparing(w -> w.address.getHostString() + ":" + w.address.getPort()));
-
-        log.info("Workers after merge: {}", workers);
-    }
-
-    /**
-     * 连接到指定地址列表（初始连接）。
-     */
-    private void connect(List<InetSocketAddress> addresses) {
-        for (InetSocketAddress address : addresses) {
-            connectOne(address);
-        }
-        workers.sort(Comparator.comparing(w -> w.address.getHostString() + ":" + w.address.getPort()));
-    }
-
-    /**
-     * 连接单个 Worker。
-     */
-    private void connectOne(InetSocketAddress address) {
-        try {
-            ChannelFuture future = bootstrap.connect(address).sync();
-            Channel channel = future.channel();
-            WorkerInfo worker = new WorkerInfo(address, channel);
-            workers.add(worker);
-            log.info("Connected to worker: {}", address);
-        } catch (Exception e) {
-            log.error("Failed to connect to worker: {}", address, e);
-            // 连接失败也记录，后续重试
-            workers.add(new WorkerInfo(address, null));
-        }
-    }
-
-    /**
-     * 处理 Channel 断开事件。
-     *
-     * @param channel 断开的 Channel
-     */
-    public void onChannelInactive(Channel channel) {
-        for (WorkerInfo worker : workers) {
-            if (worker.channel == channel) {
-                log.info("Worker disconnected: {}", worker.address);
-                workers.remove(worker);
-                break;
-            }
-        }
-    }
-
-    /**
-     * 心跳。
-     */
-    private void heartbeat() {
-        for (WorkerInfo worker : workers) {
             try {
-                if (worker.channel != null && worker.channel.isActive()) {
-                    Command ping = new Command(CommandType.ADMIN_PING, 0L, null);
-                    worker.channel.writeAndFlush(ping);
-                }
-            } catch (Exception ignored) {
+                ChannelFuture future = bootstrap.connect(address).sync();
+                Channel ch = future.channel();
+                ch.closeFuture().addListener(f -> {
+                    channelMap.remove(address, ch);
+                    log.info("Worker disconnected: {}", address);
+                });
+                channelMap.put(address, ch);
+                log.info("Connected to worker: {}", address);
+                return ch;
+            } catch (Exception e) {
+                log.error("Failed to connect to worker: {}", address, e);
+                return null;
             }
         }
     }
 
     /**
-     * 停止客户端。
+     * Worker 列表变更：排序、更新列表、关闭已下线 Worker 的 Channel。
      */
-    public void stop() {
-        for (WorkerInfo worker : workers) {
-            if (worker.channel != null) {
-                worker.channel.close();
+    private void onWorkerChange(List<InetSocketAddress> newAddresses) {
+        // 排序保证全网 hash 一致
+        newAddresses.sort(Comparator.comparing(a -> a.getHostString() + ":" + a.getPort()));
+        this.sortedWorkers = new CopyOnWriteArrayList<>(newAddresses);
+
+        // 关闭已下线 Worker 的 Channel
+        Set<InetSocketAddress> newSet = new HashSet<>(newAddresses);
+        Iterator<Map.Entry<InetSocketAddress, Channel>> it = channelMap.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<InetSocketAddress, Channel> entry = it.next();
+            if (!newSet.contains(entry.getKey())) {
+                Channel ch = entry.getValue();
+                if (ch != null) {
+                    ch.close();
+                }
+                it.remove();
+                log.info("Removed worker channel: {}", entry.getKey());
             }
         }
-        workers.clear();
+
+        log.info("Workers updated: {}", newAddresses);
+    }
+
+    // ==================== 关闭 ====================
+
+    public void stop() {
+        for (Map.Entry<InetSocketAddress, Channel> entry : channelMap.entrySet()) {
+            Channel ch = entry.getValue();
+            if (ch != null) {
+                ch.close();
+            }
+        }
+        channelMap.clear();
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
         log.info("NettyClient stopped");
-    }
-
-    /**
-     * Worker 信息。
-     */
-    private static class WorkerInfo {
-        final InetSocketAddress address;
-        volatile Channel channel;
-
-        WorkerInfo(InetSocketAddress address, Channel channel) {
-            this.address = address;
-            this.channel = channel;
-        }
-
-        @Override
-        public String toString() {
-            return address.getHostString() + ":" + address.getPort();
-        }
     }
 }
