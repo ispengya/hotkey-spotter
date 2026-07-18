@@ -13,7 +13,7 @@ import com.ispengya.hotkey.remoting.client.ServiceDiscoveryClient;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.core.HotKeyClient;
-import com.ispengya.hotkey.cli.detect.HotKeyDetector;
+import com.ispengya.hotkey.cli.detect.HotKeyReporter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,22 +178,22 @@ public class HotKeyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HotKeyDetector hotkeyHotKeyDetector(HotKeyProperties properties,
+    public HotKeyReporter hotkeyHotKeyReporter(HotKeyProperties properties,
                                                 HotKeyRemotingClient remotingClient) {
         HotKeyProperties.DetectConfig detectConfig = properties.getDetect();
         long reportPeriodMillis = detectConfig.getReportPeriodMillis();
         long queryPeriodMillis = detectConfig.getQueryPeriodMillis();
         long queryTimeoutMillis = detectConfig.getQueryTimeoutMillis();
         String appName = properties.getAppName();
-        HotKeyDetector detector = new HotKeyDetector(
+        HotKeyReporter reporter = new HotKeyReporter(
                 remotingClient,
                 appName,
                 reportPeriodMillis,
                 queryPeriodMillis,
                 queryTimeoutMillis
         );
-        detector.start();
-        return detector;
+        reporter.start();
+        return reporter;
     }
 
     private List<InetSocketAddress> buildServerAddresses(HotKeyProperties.ClientConfig clientConfig) {
@@ -232,11 +232,11 @@ public class HotKeyAutoConfiguration {
      */
     @Bean(name = HotKeyBeanNames.DEFAULT_CLIENT)
     @ConditionalOnMissingBean
-    public HotKeyClient hotkeyHotKeyClient(HotKeyDetector detector,
+    public HotKeyClient hotkeyHotKeyClient(HotKeyReporter reporter,
                                             HotKeyProperties properties) {
         HotKeyClientFactory factory = new HotKeyClientFactory();
         String appName = properties.getAppName();
-        return factory.createHotKeyClient(detector, appName);
+        return factory.createHotKeyClient(reporter, appName);
     }
 
     private Class<?> resolveClass(String className, Class<?> defaultClass, Class<?> expectedType) {

@@ -16,16 +16,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * HotKeyDetector 负责采集访问轨迹和上报访问统计，
+ * HotKeyReporter 负责采集访问轨迹和上报访问统计，
  * 并处理来自 Server 的热 Key 推送。
  *
  * <p>该类不直接感知底层通信协议，聚焦在采样和上报行为。</p>
  *
  * @author ispengya
  */
-public class HotKeyDetector {
+public class HotKeyReporter {
 
-    private static final Logger log = LoggerFactory.getLogger(HotKeyDetector.class);
+    private static final Logger log = LoggerFactory.getLogger(HotKeyReporter.class);
 
     private final ScheduledExecutorService scheduler;
     private final HotKeyTransport transport;
@@ -54,12 +54,12 @@ public class HotKeyDetector {
     }
 
     /**
-     * 构造 HotKeyDetector。
+     * 构造 HotKeyReporter。
      *
      * @param remotingClient 底层 Remoting 客户端
      * @param appName        应用名称
      */
-    public HotKeyDetector(HotKeyRemotingClient remotingClient,
+    public HotKeyReporter(HotKeyRemotingClient remotingClient,
                           String appName,
                           long reportPeriodMillis,
                           long queryPeriodMillis,
@@ -69,12 +69,12 @@ public class HotKeyDetector {
         this.reportPeriodMillis = reportPeriodMillis;
         this.transport.setPushListener(this::handlePush);
         if (log.isInfoEnabled()) {
-            log.info("HotKeyDetector initialized. appName={}, reportPeriodMillis={}",
+            log.info("HotKeyReporter initialized. appName={}, reportPeriodMillis={}",
                     appName, reportPeriodMillis);
         }
     }
 
-    public HotKeyDetector(HotKeyRemotingClient remotingClient, String appName) {
+    public HotKeyReporter(HotKeyRemotingClient remotingClient, String appName) {
         this(remotingClient, appName, 500L, 30000L, 3000L);
     }
 
@@ -88,17 +88,17 @@ public class HotKeyDetector {
     }
 
     /**
-     * 启动探测器，包括定时上报任务。
+     * 启动上报器，包括定时上报任务。
      */
     public void start() {
         scheduler.scheduleAtFixedRate(
-                this::reportTask,
+                this::report,
                 reportPeriodMillis,
                 reportPeriodMillis,
                 TimeUnit.MILLISECONDS
         );
         if (log.isInfoEnabled()) {
-            log.info("HotKeyDetector started. reportPeriodMillis={}", reportPeriodMillis);
+            log.info("HotKeyReporter started. reportPeriodMillis={}", reportPeriodMillis);
         }
     }
 
@@ -108,7 +108,7 @@ public class HotKeyDetector {
     public void stop() {
         scheduler.shutdown();
         if (log.isInfoEnabled()) {
-            log.info("HotKeyDetector stopped.");
+            log.info("HotKeyReporter stopped.");
         }
     }
 
@@ -117,7 +117,7 @@ public class HotKeyDetector {
      *
      * @param key 业务 Key
      */
-    public void recordAccess(String key) {
+    public void record(String key) {
         if (key == null) {
             return;
         }
@@ -125,9 +125,9 @@ public class HotKeyDetector {
     }
 
     /**
-     * 定时执行访问统计上报任务。
+     * 执行访问统计上报。
      */
-    private void reportTask() {
+    private void report() {
         try {
             Map<String, Integer> counts = collector.drain();
             if (counts.isEmpty()) {

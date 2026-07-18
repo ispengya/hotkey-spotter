@@ -3,7 +3,7 @@ package com.ispengya.hotkey.cli.core;
 import com.ispengya.hotkey.cli.cache.Cache;
 import com.ispengya.hotkey.cli.cache.CacheHolder;
 import com.ispengya.hotkey.cli.cache.ValueModel;
-import com.ispengya.hotkey.cli.detect.HotKeyDetector;
+import com.ispengya.hotkey.cli.detect.HotKeyReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,17 +38,17 @@ public class HotKeyClient {
 
     private static final Logger log = LoggerFactory.getLogger(HotKeyClient.class);
 
-    private final HotKeyDetector hotKeyDetector;
+    private final HotKeyReporter hotKeyReporter;
     private final CacheHolder cacheHolder;
 
     /**
      * 使用必要依赖构造 HotKeyClient。
      *
-     * @param hotKeyDetector 热 key 探测器
+     * @param hotKeyReporter 热 key 上报器
      * @param cacheHolder    缓存持有者
      */
-    public HotKeyClient(HotKeyDetector hotKeyDetector, CacheHolder cacheHolder) {
-        this.hotKeyDetector = hotKeyDetector;
+    public HotKeyClient(HotKeyReporter hotKeyReporter, CacheHolder cacheHolder) {
+        this.hotKeyReporter = hotKeyReporter;
         this.cacheHolder = cacheHolder;
     }
 
@@ -85,20 +85,20 @@ public class HotKeyClient {
 
         // 非热 key 或已过期
         if (model == null) {
-            hotKeyDetector.recordAccess(key);
+            hotKeyReporter.record(key);
             return null;
         }
 
         // 已过期，删除并返回 null
         if (model.isExpired()) {
             cache.evict(key);
-            hotKeyDetector.recordAccess(key);
+            hotKeyReporter.record(key);
             return null;
         }
 
         // 临近过期，重新上报
         if (model.isNearExpire()) {
-            hotKeyDetector.recordAccess(key);
+            hotKeyReporter.record(key);
         }
 
         // 是热 key 标记（未 set 真实值）
