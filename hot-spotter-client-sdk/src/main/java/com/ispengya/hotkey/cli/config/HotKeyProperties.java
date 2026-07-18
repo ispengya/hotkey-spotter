@@ -106,10 +106,6 @@ public class HotKeyProperties {
 
         private Integer maxFrameBytes = 1024 * 1024;
 
-        private Integer pushPoolSize = 1;
-
-        private Integer reportPoolSize = 2;
-
         private Long localCacheMaximumSize = 1000L;
 
         private Long localCacheExpireAfterWriteMillis = 5 * 60 * 1000L;
@@ -146,22 +142,6 @@ public class HotKeyProperties {
             this.maxFrameBytes = maxFrameBytes;
         }
 
-        public Integer getPushPoolSize() {
-            return pushPoolSize;
-        }
-
-        public void setPushPoolSize(Integer pushPoolSize) {
-            this.pushPoolSize = pushPoolSize;
-        }
-
-        public Integer getReportPoolSize() {
-            return reportPoolSize;
-        }
-
-        public void setReportPoolSize(Integer reportPoolSize) {
-            this.reportPoolSize = reportPoolSize;
-        }
-
         public Long getLocalCacheMaximumSize() {
             return localCacheMaximumSize;
         }
@@ -188,6 +168,10 @@ public class HotKeyProperties {
         private String namespace = "public";
 
         private String serviceName = "hot-spotter-server";
+
+        private String dataId = "hotkey-rules";
+
+        private String group = "DEFAULT_GROUP";
 
         public boolean isEnabled() {
             return enabled;
@@ -219,6 +203,22 @@ public class HotKeyProperties {
 
         public void setServiceName(String serviceName) {
             this.serviceName = serviceName;
+        }
+
+        public String getDataId() {
+            return dataId;
+        }
+
+        public void setDataId(String dataId) {
+            this.dataId = dataId;
+        }
+
+        public String getGroup() {
+            return group;
+        }
+
+        public void setGroup(String group) {
+            this.group = group;
         }
     }
 }

@@ -64,7 +64,7 @@ public class HotKeyTransport {
      * @param listener 推送消息回调处理器
      */
     public void setPushListener(Consumer<HotKeyViewMessage> listener) {
-        remotingClient.setPushListener(listener);
+        remotingClient.setPushCallback(listener);
         if (log.isInfoEnabled()) {
             log.info("Registered push listener for appName={}", appName);
         }
