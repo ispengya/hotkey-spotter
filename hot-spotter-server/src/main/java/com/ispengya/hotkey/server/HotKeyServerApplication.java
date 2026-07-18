@@ -1,6 +1,6 @@
 package com.ispengya.hotkey.server;
 
-import com.ispengya.hotkey.common.nacos.NacosConfigClient;
+import com.ispengya.hotkey.server.nacos.NacosServerClient;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
@@ -112,7 +112,7 @@ public class HotKeyServerApplication {
         );
 
         // 6. Nacos Integration
-        NacosConfigClient nacosClient = new NacosConfigClient(
+        NacosServerClient nacosClient = new NacosServerClient(
                 properties.getNacos().getServerAddr(),
                 properties.getNacos().getNamespace()
         );

@@ -1,6 +1,7 @@
-package com.ispengya.hotkey.common.nacos;
+package com.ispengya.hotkey.cli.nacos;
 
 import com.alibaba.fastjson2.JSON;
+import com.ispengya.hotkey.common.nacos.NacosClient;
 import com.ispengya.hotkey.common.rule.KeyRule;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.alibaba.nacos.api.NacosFactory;
@@ -33,7 +34,7 @@ import java.util.concurrent.Executor;
  *
  * @author ispengya
  */
-public class NacosConfigClient {
+public class NacosConfigClient implements NacosClient {
 
     private static final Logger log = LoggerFactory.getLogger(NacosConfigClient.class);
 
@@ -60,6 +61,7 @@ public class NacosConfigClient {
     /**
      * 初始化客户端，创建 ConfigService 和 NamingService。
      */
+    @Override
     public void init() throws NacosException {
         Properties properties = new Properties();
         properties.put("serverAddr", serverAddr);
@@ -73,23 +75,13 @@ public class NacosConfigClient {
 
     // ==================== 配置操作 ====================
 
-    /**
-     * 获取配置内容。
-     *
-     * @param dataId 配置 ID
-     * @param group  配置分组
-     * @return 配置内容
-     */
+    @Override
     public String getConfig(String dataId, String group) throws NacosException {
         return configService.getConfig(dataId, group, 3000);
     }
 
     /**
      * 监听配置变更。
-     *
-     * @param dataId   配置 ID
-     * @param group    配置分组
-     * @param listener 变更监听器
      */
     public void addConfigListener(String dataId, String group, Listener listener) throws NacosException {
         configService.addListener(dataId, group, listener);
@@ -98,46 +90,35 @@ public class NacosConfigClient {
 
     // ==================== 服务发现 ====================
 
-    /**
-     * 获取服务的所有实例。
-     *
-     * @param serviceName 服务名
-     * @return 实例列表
-     */
+    @Override
     public List<Instance> getAllInstances(String serviceName) throws NacosException {
         return namingService.getAllInstances(serviceName);
     }
 
-    /**
-     * 订阅服务变更。
-     *
-     * @param serviceName 服务名
-     * @param listener    变更监听器
-     */
-    public void subscribe(String serviceName, com.alibaba.nacos.api.naming.listener.EventListener listener) throws NacosException {
+    @Override
+    public void subscribe(String serviceName, EventListener listener) throws NacosException {
         namingService.subscribe(serviceName, listener);
         log.info("Subscribed to service: {}", serviceName);
     }
 
-    /**
-     * 取消订阅服务变更。
-     *
-     * @param serviceName 服务名
-     * @param listener    变更监听器
-     */
-    public void unsubscribe(String serviceName, com.alibaba.nacos.api.naming.listener.EventListener listener) throws NacosException {
+    @Override
+    public void unsubscribe(String serviceName, EventListener listener) throws NacosException {
         namingService.unsubscribe(serviceName, listener);
+    }
+
+    @Override
+    public void registerInstance(String serviceName, String ip, int port) throws NacosException {
+        namingService.registerInstance(serviceName, ip, port);
+    }
+
+    @Override
+    public void deregisterInstance(String serviceName, String ip, int port) throws NacosException {
+        namingService.deregisterInstance(serviceName, ip, port);
     }
 
     // ==================== 规则管理 ====================
 
-    /**
-     * 加载指定应用的规则配置。
-     *
-     * @param dataId 配置 ID（如 "hotkey-config"）
-     * @param group  配置分组（应用名称）
-     * @return 规则配置
-     */
+    @Override
     public RuleConfig loadRuleConfig(String dataId, String group) {
         try {
             String config = getConfig(dataId, group);
@@ -150,12 +131,7 @@ public class NacosConfigClient {
         }
     }
 
-    /**
-     * 监听规则配置变更。
-     *
-     * @param dataId 配置 ID
-     * @param group  配置分组（应用名称）
-     */
+    @Override
     public void addRuleConfigListener(String dataId, String group) {
         try {
             addConfigListener(dataId, group, new Listener() {
@@ -177,49 +153,23 @@ public class NacosConfigClient {
         }
     }
 
-    /**
-     * 获取缓存的规则配置。
-     *
-     * @param appName 应用名称
-     * @return 规则配置
-     */
+    @Override
     public RuleConfig getCachedRuleConfig(String appName) {
         return ruleConfigCache.get(appName);
     }
 
-    /**
-     * 获取所有缓存的规则配置。
-     *
-     * @return 规则配置映射
-     */
+    @Override
     public Map<String, RuleConfig> getAllCachedRuleConfigs() {
         return new ConcurrentHashMap<>(ruleConfigCache);
     }
 
-    /**
-     * 添加规则变更监听器。
-     *
-     * @param listener 监听器
-     */
+    @Override
     public void addRuleChangeListener(RuleChangeListener listener) {
         ruleChangeListeners.add(listener);
     }
 
     /**
      * 解析规则配置 JSON。
-     *
-     * <p>支持两种格式：</p>
-     * <pre>
-     * // 格式1：直接的规则数组
-     * [{"key": "skuId_*", "prefix": true, "interval": 2, "threshold": 10, "duration": 60}]
-     *
-     * // 格式2：带 hotkey.rules 的完整配置
-     * {"hotkey": {"rules": [...]}}
-     * </pre>
-     *
-     * @param appName 应用名称
-     * @param config  配置 JSON
-     * @return 规则配置
      */
     private RuleConfig parseRuleConfig(String appName, String config) {
         if (config == null || config.trim().isEmpty()) {
@@ -262,23 +212,7 @@ public class NacosConfigClient {
         }
     }
 
-    /**
-     * 注册服务实例
-     */
-    public void registerInstance(String serviceName, String ip, int port) throws NacosException {
-        namingService.registerInstance(serviceName, ip, port);
-    }
-
-    /**
-     * 注销服务实例
-     */
-    public void deregisterInstance(String serviceName, String ip, int port) throws NacosException {
-        namingService.deregisterInstance(serviceName, ip, port);
-    }
-
-    /**
-     * 关闭客户端。
-     */
+    @Override
     public void shutdown() {
         try {
             if (configService != null) {
@@ -291,18 +225,5 @@ public class NacosConfigClient {
         } catch (NacosException e) {
             log.error("Error shutting down NacosConfigClient", e);
         }
-    }
-
-    /**
-     * 规则变更监听器接口。
-     */
-    public interface RuleChangeListener {
-        /**
-         * 规则变更回调。
-         *
-         * @param appName    应用名称
-         * @param ruleConfig 新的规则配置
-         */
-        void onRuleChange(String appName, RuleConfig ruleConfig);
     }
 }

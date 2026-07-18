@@ -1,22 +1,21 @@
 package com.ispengya.hotkey.cli.spring;
 
 import cn.hutool.core.collection.CollUtil;
-import com.ispengya.hotkey.common.nacos.NacosConfigClient;
-import com.ispengya.hotkey.common.rule.RuleConfig;
-import com.ispengya.hotkey.cli.rule.RuleHolder;
-import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
+import com.ispengya.hotkey.cli.cache.CacheHolder;
+import com.ispengya.hotkey.cli.config.HotKeyProperties;
+import com.ispengya.hotkey.cli.HotKeyClient;
+import com.ispengya.hotkey.cli.detect.HotKeyReporter;
+import com.ispengya.hotkey.cli.nacos.NacosRegistry;
+import com.ispengya.hotkey.cli.nacos.WorkerDiscovery;
 import com.ispengya.hotkey.remoting.client.ClientRequestSender;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hotkey.remoting.client.NettyClient;
 import com.ispengya.hotkey.remoting.client.NettyClientConfig;
-import com.ispengya.hotkey.remoting.client.ServiceDiscoveryClient;
+import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
-import com.ispengya.hotkey.cli.config.HotKeyProperties;
-import com.ispengya.hotkey.cli.core.HotKeyClient;
-import com.ispengya.hotkey.cli.detect.HotKeyReporter;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,11 +27,17 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
- * HotKeyAutoConfiguration 提供 hotkey 在 Spring Boot 环境下的自动装配，
- * 在检测到 HotKeyClient 存在且配置开启时，自动注册相关 Bean。
+ * HotKey 自动配置类。
+ *
+ * <p>负责初始化 HotKey 客户端的所有组件：
+ * <ul>
+ *     <li>注册中心：NacosRegistry（可选）</li>
+ *     <li>通信层：NettyClient、HotKeyRemotingClient</li>
+ *     <li>核心业务：HotKeyReporter、HotKeyClient</li>
+ * </ul>
+ * </p>
  *
  * @author ispengya
  */
@@ -43,76 +48,21 @@ public class HotKeyAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(HotKeyAutoConfiguration.class);
 
-    /**
-     * 注册 HotKeyClientManager，用于集中管理多实例客户端。
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @Deprecated
-    public HotKeyClientManager hotKeyClientManager() {
-        return new HotKeyClientManager();
-    }
+    // ==================== 注册中心 ====================
 
     /**
-     * 注册 NacosConfigClient（当 nacos 启用时）。
+     * 注册中心（可选，当 nacos 启用时创建）。
      */
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "hotkey.nacos", name = "enabled", havingValue = "true")
-    public NacosConfigClient hotkeyNacosConfigClient(HotKeyProperties properties) {
-        HotKeyProperties.NacosConfig nacosConfig = properties.getNacos();
-        NacosConfigClient client = new NacosConfigClient(
-                nacosConfig.getServerAddr(),
-                nacosConfig.getNamespace()
-        );
-        try {
-            client.init();
-            log.info("NacosConfigClient initialized: serverAddr={}, namespace={}",
-                    nacosConfig.getServerAddr(), nacosConfig.getNamespace());
-        } catch (Exception e) {
-            log.error("Failed to initialize NacosConfigClient", e);
-            throw new RuntimeException("Failed to initialize NacosConfigClient", e);
-        }
-
-        // 添加规则变更监听器，同步更新 RuleHolder
-        client.addRuleChangeListener(new NacosConfigClient.RuleChangeListener() {
-            @Override
-            public void onRuleChange(String appName, RuleConfig ruleConfig) {
-                RuleHolder.updateRuleConfig(appName, ruleConfig);
-                log.info("RuleHolder updated for app: {}", appName);
-            }
-        });
-
-        // 加载已有的规则配置
-        String appName = properties.getAppName();
-        if (appName != null && !appName.isEmpty()) {
-            RuleConfig existingConfig = client.getCachedRuleConfig(appName);
-            if (existingConfig != null) {
-                RuleHolder.updateRuleConfig(appName, existingConfig);
-                log.info("Loaded existing rule config for app: {}", appName);
-            }
-        }
-
-        return client;
+    public NacosRegistry hotkeyNacosRegistry(HotKeyProperties properties) {
+        NacosRegistry registry = new NacosRegistry(properties);
+        registry.init();
+        return registry;
     }
 
-    /**
-     * 注册 ServiceDiscoveryClient（当 nacos 启用时）。
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "hotkey.nacos", name = "enabled", havingValue = "true")
-    public ServiceDiscoveryClient hotkeyServiceDiscoveryClient(NacosConfigClient nacosConfigClient,
-                                                                HotKeyProperties properties) {
-        HotKeyProperties.NacosConfig nacosConfig = properties.getNacos();
-        ServiceDiscoveryClient client = new ServiceDiscoveryClient(
-                nacosConfigClient,
-                nacosConfig.getServiceName()
-        );
-        client.init();
-        log.info("ServiceDiscoveryClient initialized: serviceName={}", nacosConfig.getServiceName());
-        return client;
-    }
+    // ==================== 通信层 ====================
 
     @Bean
     @ConditionalOnMissingBean
@@ -123,22 +73,25 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hotkeyNettyClient(HotKeyProperties properties,
-                                          @org.springframework.beans.factory.annotation.Autowired(required = false) ServiceDiscoveryClient serviceDiscoveryClient) {
+                                          @Autowired(required = false) NacosRegistry nacosRegistry) {
         HotKeyProperties.ClientConfig clientConfig = properties.getClient();
         List<InetSocketAddress> serverAddresses;
 
         // 优先使用 nacos 服务发现
-        if (serviceDiscoveryClient != null) {
-            serverAddresses = serviceDiscoveryClient.getWorkerAddresses();
+        WorkerDiscovery workerDiscovery = nacosRegistry != null
+                ? nacosRegistry.getWorkerDiscovery()
+                : null;
+
+        if (workerDiscovery != null) {
+            serverAddresses = workerDiscovery.getWorkerAddresses();
             if (serverAddresses.isEmpty()) {
                 log.warn("No workers found from nacos, falling back to static addresses");
                 serverAddresses = buildServerAddresses(clientConfig);
             }
             // 监听 worker 列表变更
-            serviceDiscoveryClient.setAddressChangeListener(addresses -> {
+            workerDiscovery.setAddressChangeListener(addresses -> {
                 log.info("Worker list changed, reconnecting: {}", addresses);
-                // 这里需要重新创建 NettyClient 或者实现 reconnect 方法
-                // 暂时简化处理
+                // TODO: 实现 NettyClient 重连逻辑
             });
         } else {
             serverAddresses = buildServerAddresses(clientConfig);
@@ -176,6 +129,8 @@ public class HotKeyAutoConfiguration {
         return client;
     }
 
+    // ==================== 核心业务 ====================
+
     @Bean
     @ConditionalOnMissingBean
     public HotKeyReporter hotkeyHotKeyReporter(HotKeyProperties properties,
@@ -193,8 +148,36 @@ public class HotKeyAutoConfiguration {
                 queryTimeoutMillis
         );
         reporter.start();
+        log.info("HotKeyReporter started: appName={}, reportPeriodMillis={}", appName, reportPeriodMillis);
         return reporter;
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HotKeyClient hotkeyHotKeyClient(HotKeyReporter reporter,
+                                            HotKeyProperties properties) {
+        String appName = properties.getAppName();
+        CacheHolder cacheHolder = new CacheHolder(appName);
+        HotKeyClient client = new HotKeyClient(reporter, cacheHolder);
+
+        // 设置热 key 监听器，将推送事件转发给 HotKeyClient
+        reporter.setHotKeyListener(new HotKeyReporter.HotKeyListener() {
+            @Override
+            public void onHotKeyAdded(String key, int durationSeconds) {
+                client.addHotKey(key, durationSeconds);
+            }
+
+            @Override
+            public void onHotKeyRemoved(String key) {
+                client.removeHotKey(key);
+            }
+        });
+
+        log.info("HotKeyClient created: appName={}", appName);
+        return client;
+    }
+
+    // ==================== 工具方法 ====================
 
     private List<InetSocketAddress> buildServerAddresses(HotKeyProperties.ClientConfig clientConfig) {
         List<String> addresses = clientConfig.getServerAddresses();
@@ -225,32 +208,5 @@ public class HotKeyAutoConfiguration {
             return Collections.singletonList(new InetSocketAddress("127.0.0.1", 8888));
         }
         return result;
-    }
-
-    /**
-     * 注册默认的 HotKeyClient。
-     */
-    @Bean(name = HotKeyBeanNames.DEFAULT_CLIENT)
-    @ConditionalOnMissingBean
-    public HotKeyClient hotkeyHotKeyClient(HotKeyReporter reporter,
-                                            HotKeyProperties properties) {
-        HotKeyClientFactory factory = new HotKeyClientFactory();
-        String appName = properties.getAppName();
-        return factory.createHotKeyClient(reporter, appName);
-    }
-
-    private Class<?> resolveClass(String className, Class<?> defaultClass, Class<?> expectedType) {
-        if (StringUtils.isEmpty(className)) {
-            return defaultClass;
-        }
-        try {
-            Class<?> clazz = Class.forName(className);
-            if (!expectedType.isAssignableFrom(clazz)) {
-                return defaultClass;
-            }
-            return clazz;
-        } catch (ClassNotFoundException e) {
-            return defaultClass;
-        }
     }
 }

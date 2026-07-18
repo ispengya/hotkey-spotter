@@ -1,6 +1,6 @@
 package com.ispengya.hotkey.remoting.server;
 
-import com.ispengya.hotkey.common.nacos.NacosConfigClient;
+import com.ispengya.hotkey.common.nacos.NacosClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,12 +15,12 @@ public final class ServiceRegistration {
 
     private static final Logger log = LoggerFactory.getLogger(ServiceRegistration.class);
 
-    private final NacosConfigClient nacosClient;
+    private final NacosClient nacosClient;
     private final String serviceName;
     private final String ip;
     private final int port;
 
-    public ServiceRegistration(NacosConfigClient nacosClient,
+    public ServiceRegistration(NacosClient nacosClient,
                                String serviceName,
                                String ip,
                                int port) {

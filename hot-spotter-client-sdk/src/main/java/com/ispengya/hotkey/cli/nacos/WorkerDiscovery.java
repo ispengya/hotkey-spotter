@@ -1,6 +1,5 @@
-package com.ispengya.hotkey.remoting.client;
+package com.ispengya.hotkey.cli.nacos;
 
-import com.ispengya.hotkey.common.nacos.NacosConfigClient;
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,27 +14,27 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * 服务发现客户端。
+ * Worker 节点发现。
  *
  * <p>从 nacos 获取 Worker 节点列表，并监听节点变化。</p>
  *
  * @author ispengya
  */
-public final class ServiceDiscoveryClient {
+public final class WorkerDiscovery {
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceDiscoveryClient.class);
+    private static final Logger log = LoggerFactory.getLogger(WorkerDiscovery.class);
 
     private final NacosConfigClient nacosClient;
     private final String serviceName;
     private final CopyOnWriteArrayList<InetSocketAddress> workerAddresses = new CopyOnWriteArrayList<>();
     private volatile Consumer<List<InetSocketAddress>> addressChangeListener;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "service-discovery-scheduler");
+        Thread t = new Thread(r, "worker-discovery-scheduler");
         t.setDaemon(true);
         return t;
     });
 
-    public ServiceDiscoveryClient(NacosConfigClient nacosClient, String serviceName) {
+    public WorkerDiscovery(NacosConfigClient nacosClient, String serviceName) {
         this.nacosClient = nacosClient;
         this.serviceName = serviceName;
     }
@@ -67,7 +66,7 @@ public final class ServiceDiscoveryClient {
         // 定时刷新（兜底）
         scheduler.scheduleAtFixedRate(this::refreshWorkerAddresses, 30, 30, TimeUnit.SECONDS);
 
-        log.info("ServiceDiscoveryClient initialized, serviceName={}, workers={}", serviceName, workerAddresses);
+        log.info("WorkerDiscovery initialized, serviceName={}, workers={}", serviceName, workerAddresses);
     }
 
     /**

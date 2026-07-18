@@ -1,6 +1,6 @@
 //package com.ispengya.hotkey.example;
 //
-//import com.ispengya.hotkey.cli.core.HotKeyClient;
+//import com.ispengya.hotkey.cli.HotKeyClient;
 //import com.ispengya.hotkey.cli.core.ValueLoader;
 //import com.ispengya.hotkey.cli.spring.EnableHotKey;
 //import org.springframework.boot.SpringApplication;

@@ -35,7 +35,6 @@ public class HotKeyConfigurationSelector implements DeferredImportSelector, Orde
             return new String[] {};
         }
         return new String[] {
-//                HotKeyInstanceBeanDefinitionRegistrar.class.getName(),
                 HotKeyAutoConfiguration.class.getName()
         };
     }

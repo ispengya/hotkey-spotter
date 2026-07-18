@@ -1,4 +1,4 @@
-package com.ispengya.hotkey.cli.core;
+package com.ispengya.hotkey.cli;
 
 import com.ispengya.hotkey.cli.cache.Cache;
 import com.ispengya.hotkey.cli.cache.CacheHolder;

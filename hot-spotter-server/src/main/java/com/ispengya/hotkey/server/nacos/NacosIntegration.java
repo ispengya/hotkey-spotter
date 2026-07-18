@@ -1,6 +1,6 @@
 package com.ispengya.hotkey.server.nacos;
 
-import com.ispengya.hotkey.common.nacos.NacosConfigClient;
+import com.ispengya.hotkey.common.nacos.NacosClient;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.ispengya.hotkey.remoting.server.ServiceRegistration;
 import org.slf4j.Logger;
@@ -26,12 +26,12 @@ public final class NacosIntegration {
 
     private static final Logger log = LoggerFactory.getLogger(NacosIntegration.class);
 
-    private final NacosConfigClient nacosClient;
+    private final NacosClient nacosClient;
     private final ServiceRegistration serviceRegistration;
     private final ConcurrentHashMap<String, RuleConfig> ruleConfigs = new ConcurrentHashMap<>();
     private volatile RuleChangeListener ruleChangeListener;
 
-    public NacosIntegration(NacosConfigClient nacosClient,
+    public NacosIntegration(NacosClient nacosClient,
                             ServiceRegistration serviceRegistration) {
         this.nacosClient = nacosClient;
         this.serviceRegistration = serviceRegistration;

@@ -124,7 +124,7 @@ public class DemoApplication {
 ### HotKeyClient 使用示例
 
 ```java
-import com.ispengya.hotkey.cli.core.HotKeyClient;
+import com.ispengya.hotkey.cli.HotKeyClient;
 import org.springframework.stereotype.Service;
 
 @Service
