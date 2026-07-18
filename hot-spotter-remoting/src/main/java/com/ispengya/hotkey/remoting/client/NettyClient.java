@@ -189,6 +189,40 @@ public final class NettyClient {
     }
 
     /**
+     * 重新连接到新的服务端地址列表。
+     *
+     * <p>关闭现有连接，清空连接池，使用新的地址列表重新建立连接。</p>
+     *
+     * @param newAddresses 新的服务端地址列表
+     */
+    public void reconnect(List<InetSocketAddress> newAddresses) {
+        synchronized (this) {
+            // 关闭现有连接
+            for (Channel ch : pushChannelPool) {
+                if (ch != null) {
+                    ch.close();
+                }
+            }
+            for (Channel ch : reportChannelPool) {
+                if (ch != null) {
+                    ch.close();
+                }
+            }
+            pushChannelPool.clear();
+            reportChannelPool.clear();
+
+            // 更新地址
+            this.boundAddress = null;
+            // 配置中的地址列表需要更新（通过反射或重新构建配置）
+            // 这里我们直接更新 boundAddress，在下次连接时使用新地址
+            if (newAddresses != null && !newAddresses.isEmpty()) {
+                // 选择第一个可用地址
+                this.boundAddress = newAddresses.get(0);
+            }
+        }
+    }
+
+    /**
      * 停止客户端并释放资源。
      */
     public void stop() {

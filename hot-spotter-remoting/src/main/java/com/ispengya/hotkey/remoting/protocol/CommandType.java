@@ -16,5 +16,6 @@ public enum CommandType {
     HOT_KEY_QUERY,
     ADMIN_PING,
     HOT_KEY_PUSH,
-    PUSH_CHANNEL_REGISTER
+    PUSH_CHANNEL_REGISTER,
+    RULE_CHANGE
 }

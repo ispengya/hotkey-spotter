@@ -9,6 +9,7 @@ import com.alibaba.nacos.api.config.listener.Listener;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.NamingService;
 import com.alibaba.nacos.api.naming.pojo.Instance;
+import com.alibaba.nacos.api.naming.listener.EventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -259,6 +260,20 @@ public class NacosConfigClient {
                 log.error("Error notifying rule change listener. appName={}", appName, e);
             }
         }
+    }
+
+    /**
+     * 注册服务实例
+     */
+    public void registerInstance(String serviceName, String ip, int port) throws NacosException {
+        namingService.registerInstance(serviceName, ip, port);
+    }
+
+    /**
+     * 注销服务实例
+     */
+    public void deregisterInstance(String serviceName, String ip, int port) throws NacosException {
+        namingService.deregisterInstance(serviceName, ip, port);
     }
 
     /**
