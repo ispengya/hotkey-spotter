@@ -2,18 +2,13 @@ package com.ispengya.hotkey.server.core;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
  * InstanceWindowRegistry 负责维护 appName 到滑动窗口存储的映射。
- *
- * 核心职责：
- * 1. 根据 appName 选择对应的滑动窗口（不存在时创建）
- * 2. 枚举当前所有已存在窗口对应的 appName
  */
-public final class InstanceWindowRegistry implements InstanceRegistry {
+public final class InstanceWindowRegistry {
 
     private final ConcurrentMap<String, SlidingWindowInstanceAggStore> stores = new ConcurrentHashMap<>();
 
@@ -34,11 +29,6 @@ public final class InstanceWindowRegistry implements InstanceRegistry {
      */
     public SlidingWindowInstanceAggStore selectWindowForApp(String appName) {
         return stores.computeIfAbsent(appName, this::createWindowForApp);
-    }
-
-    @Override
-    public Set<String> listAppNames() {
-        return stores.keySet();
     }
 
     private SlidingWindowInstanceAggStore createWindowForApp(String appName) {

@@ -18,21 +18,14 @@ import com.ispengya.hotkey.server.remoting.DefaultServerRequestDispatcher;
 import com.ispengya.hotkey.server.remoting.HotKeyQueryHandler;
 import com.ispengya.hotkey.server.remoting.PingRequestHandler;
 import com.ispengya.hotkey.server.remoting.ReportRequestHandler;
-import com.ispengya.hotkey.server.scheduler.HotKeyScheduler;
-import com.ispengya.hotkey.server.scheduler.HotKeyComputeTask;
 import com.ispengya.hotkey.server.scheduler.HotKeyChangePublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * HotKeyServerApplication 服务端入口程序。
- *
- * <p>组装配置、Netty 组件、核心聚合计算组件，并启动服务。</p>
  *
  * @author ispengya
  */
@@ -47,7 +40,8 @@ public class HotKeyServerApplication {
         HotKeyServerProperties.Server serverProps = properties.getServer();
         HotKeyServerProperties.Aggregator windowRegistryProps = properties.getAggregator();
         HotKeyServerProperties.Algorithm algorithmProps = properties.getAlgorithm();
-        HotKeyServerProperties.Scheduler schedulerProps = properties.getScheduler();
+
+        // Netty config
         NettyServerConfig serverConfig = new NettyServerConfig(
                 serverProps.getPort(),
                 serverProps.getBossThreads(),
@@ -60,24 +54,24 @@ public class HotKeyServerApplication {
                 serverProps.getMaxFrameBytes()
         );
 
-        // 2. Remoting components
+        // Remoting
         ServerChannelManager channelManager = new ServerChannelManager();
         DefaultServerRequestDispatcher dispatcher = new DefaultServerRequestDispatcher();
         NettyServer nettyServer = new NettyServer(serverConfig, channelManager, dispatcher);
 
+        // Core
         InstanceWindowRegistry windowRegistry = new InstanceWindowRegistry(
                 windowRegistryProps.getWindowSizeMillis(),
                 windowRegistryProps.getWindowSlotCount()
         );
         InMemoryHotKeyResultStore resultStore = new InMemoryHotKeyResultStore();
-
         HotKeyComputeAlgorithm algorithm = new HotKeyComputeAlgorithm(
                 algorithmProps.getMinCountThreshold()
         );
 
-        HotKeyComputeTask.setDebugEnabled(properties.isDebugEnabled());
-
         Serializer serializer = new Fastjson2Serializer();
+
+        // Pipeline
         HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer, properties.isDebugEnabled());
         AccessReportPipeline pipeline = new AccessReportPipeline(
                 windowRegistry,
@@ -86,30 +80,12 @@ public class HotKeyServerApplication {
                 changePublisher
         );
 
+        // Handlers
         dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline, channelManager, properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer, properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler(properties.isDebugEnabled()));
 
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(
-                schedulerProps.getCorePoolSize()
-        );
-        ExecutorService workerPool = Executors.newFixedThreadPool(
-                schedulerProps.getWorkerPoolSize()
-        );
-        HotKeyScheduler hotKeyScheduler = new HotKeyScheduler(
-                scheduler,
-                workerPool,
-                windowRegistry,
-                algorithm,
-                resultStore,
-                schedulerProps.getPeriodMillis(),
-                changePublisher,
-                schedulerProps.getDecayPeriodMillis(),
-                schedulerProps.getHotKeyIdleMillis(),
-                properties.isDebugEnabled()
-        );
-
-        // 6. Nacos Integration
+        // Nacos
         NacosServerClient nacosClient = new NacosServerClient(
                 properties.getNacos().getServerAddr(),
                 properties.getNacos().getNamespace()
@@ -136,13 +112,12 @@ public class HotKeyServerApplication {
             log.info("Rule config updated for app: {}", appName);
         });
 
-        // 7. Bootstrap
-        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, hotKeyScheduler, nacosIntegration);
+        // Bootstrap
+        HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, nacosIntegration);
         bootstrap.start();
 
         log.info("HotKey Server started on port {}", serverConfig.getPort());
 
-        // Shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Stopping HotKey Server...");
             bootstrap.stop();

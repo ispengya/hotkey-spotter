@@ -15,20 +15,17 @@ public final class HotKeyServerProperties {
     private final Server server;
     private final Aggregator aggregator;
     private final Algorithm algorithm;
-    private final Scheduler scheduler;
     private final Nacos nacos;
     private final boolean debugEnabled;
 
     private HotKeyServerProperties(Server server,
                                    Aggregator aggregator,
                                    Algorithm algorithm,
-                                   Scheduler scheduler,
                                    Nacos nacos,
                                    boolean debugEnabled) {
         this.server = server;
         this.aggregator = aggregator;
         this.algorithm = algorithm;
-        this.scheduler = scheduler;
         this.nacos = nacos;
         this.debugEnabled = debugEnabled;
     }
@@ -66,14 +63,6 @@ public final class HotKeyServerProperties {
                 getLong(props, "algorithm.minCountThreshold", 3L)
         );
 
-        Scheduler scheduler = new Scheduler(
-                getInt(props, "scheduler.corePoolSize", 1),
-                getInt(props, "scheduler.workerPoolSize", 4),
-                getLong(props, "scheduler.periodMillis", 1000L),
-                getLong(props, "scheduler.decayPeriodMillis", 1000L),
-                getLong(props, "scheduler.hotKeyIdleMillis", 60000L)
-        );
-
         Nacos nacos = new Nacos(
                 props.getProperty("nacos.serverAddr", "127.0.0.1:8848"),
                 props.getProperty("nacos.namespace", "public"),
@@ -82,7 +71,7 @@ public final class HotKeyServerProperties {
 
         boolean debugEnabled = getBoolean(props, "logging.debugEnabled", false);
 
-        return new HotKeyServerProperties(server, aggregator, algorithm, scheduler, nacos, debugEnabled);
+        return new HotKeyServerProperties(server, aggregator, algorithm, nacos, debugEnabled);
     }
 
     public Server getServer() {
@@ -95,10 +84,6 @@ public final class HotKeyServerProperties {
 
     public Algorithm getAlgorithm() {
         return algorithm;
-    }
-
-    public Scheduler getScheduler() {
-        return scheduler;
     }
 
     public Nacos getNacos() {
@@ -249,47 +234,6 @@ public final class HotKeyServerProperties {
 
         public long getMinCountThreshold() {
             return minCountThreshold;
-        }
-    }
-
-    public static final class Scheduler {
-
-        private final int corePoolSize;
-        private final int workerPoolSize;
-        private final long periodMillis;
-        private final long decayPeriodMillis;
-        private final long hotKeyIdleMillis;
-
-        public Scheduler(int corePoolSize,
-                         int workerPoolSize,
-                         long periodMillis,
-                         long decayPeriodMillis,
-                         long hotKeyIdleMillis) {
-            this.corePoolSize = corePoolSize;
-            this.workerPoolSize = workerPoolSize;
-            this.periodMillis = periodMillis;
-            this.decayPeriodMillis = decayPeriodMillis;
-            this.hotKeyIdleMillis = hotKeyIdleMillis;
-        }
-
-        public int getCorePoolSize() {
-            return corePoolSize;
-        }
-
-        public int getWorkerPoolSize() {
-            return workerPoolSize;
-        }
-
-        public long getPeriodMillis() {
-            return periodMillis;
-        }
-
-        public long getDecayPeriodMillis() {
-            return decayPeriodMillis;
-        }
-
-        public long getHotKeyIdleMillis() {
-            return hotKeyIdleMillis;
         }
     }
 

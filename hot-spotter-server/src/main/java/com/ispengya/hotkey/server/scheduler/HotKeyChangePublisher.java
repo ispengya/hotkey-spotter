@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,14 +19,9 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
-* HotKeyChangePublisher 负责将服务端计算出的热 key 变更异步推送给所有客户端。
-*
-* <p>调用方（例如 HotKeyComputeTask、HotKeyDecayTask）只需提交本次计算的整体结果
-* 以及新增 / 删除的 key 集合，本类会将每个 key 的变更包装成单条事件放入队列，由
-* 后台单线程循环从阻塞队列中取出并通过 HOT_KEY_PUSH 命令广播给所有推送连接。</p>
-*
-* <p>这种设计将「热 key 计算 / 衰减」与「网络推送」解耦，避免在计算线程中执行 IO，
-* 同时保证同一进程内的推送顺序与队列顺序一致。</p>
+ * HotKeyChangePublisher 负责将热 key 新增事件异步推送给客户端。
+ *
+ * <p>计算线程提交变更事件到队列，后台线程消费并推送，解耦计算与网络 IO。</p>
  */
 public final class HotKeyChangePublisher {
 
@@ -55,39 +49,11 @@ public final class HotKeyChangePublisher {
         this.executor.scheduleAtFixedRate(this::flush, 10L, 10L, TimeUnit.MILLISECONDS);
     }
 
-    public void publish(HotKeyResult result, Set<String> addedKeys, Set<String> removedKeys) {
-        if (result == null) {
+    public void publish(HotKeyResult result, String key) {
+        if (result == null || key == null) {
             return;
         }
-        if ((addedKeys == null || addedKeys.isEmpty()) && (removedKeys == null || removedKeys.isEmpty())) {
-            return;
-        }
-        if (addedKeys != null) {
-            for (String key : addedKeys) {
-                if (key == null) {
-                    continue;
-                }
-                enqueue(result, key, true);
-            }
-        }
-        if (removedKeys != null) {
-            for (String key : removedKeys) {
-                if (key == null) {
-                    continue;
-                }
-                enqueue(result, key, false);
-            }
-        }
-        if (debugEnabled && log.isDebugEnabled()) {
-            int addCount = addedKeys == null ? 0 : addedKeys.size();
-            int removeCount = removedKeys == null ? 0 : removedKeys.size();
-            log.debug("Enqueue hot key changes. appName={}, addCount={}, removeCount={}",
-                    result.getAppName(), addCount, removeCount);
-        }
-    }
-
-    private void enqueue(HotKeyResult result, String key, boolean add) {
-        queue.offer(new PushEvent(result, key, add));
+        queue.offer(new PushEvent(result, key));
     }
 
     private void flush() {
@@ -95,50 +61,38 @@ public final class HotKeyChangePublisher {
             while (true) {
                 PushEvent event = queue.take();
                 if (debugEnabled && log.isDebugEnabled()) {
-                    log.debug("Dequeue hot key change. appName={}, key={}, add={}",
-                            event.result.getAppName(), event.key, event.add);
+                    log.debug("Dequeue hot key change. appName={}, key={}",
+                            event.result.getAppName(), event.key);
                 }
-                sendSingle(event.result, event.key, event.add);
+                sendSingle(event.result, event.key);
             }
         } catch (InterruptedException e) {
-            if (log.isWarnEnabled()) {
-                log.warn("HotKeyChangePublisher flush thread interrupted", e);
-            }
+            log.warn("HotKeyChangePublisher flush thread interrupted");
             Thread.currentThread().interrupt();
         } catch (Throwable t) {
-            if (log.isErrorEnabled()) {
-                log.error("Unexpected error in HotKeyChangePublisher.flush", t);
-            }
+            log.error("Unexpected error in HotKeyChangePublisher.flush", t);
         }
     }
 
-    private void sendSingle(HotKeyResult result, String key, boolean add) {
+    private void sendSingle(HotKeyResult result, String key) {
         HotKeyViewMessage view = new HotKeyViewMessage();
         HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry();
-        if (add) {
-            entry.setAddedKey(key);
-        } else {
-            entry.setRemovedKey(key);
-        }
+        entry.setAddedKey(key);
         Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
         views.put(result.getAppName(), entry);
         view.setViews(views);
         byte[] payload = serializer.serialize(view);
         Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
-        // 精确推送到真正访问过该 key 的 Channel 集合，而非 app 级广播
         channelManager.broadcastToKey(result.getAppName(), key, command);
     }
 
     private static final class PushEvent {
-
         private final HotKeyResult result;
         private final String key;
-        private final boolean add;
 
-        private PushEvent(HotKeyResult result, String key, boolean add) {
+        private PushEvent(HotKeyResult result, String key) {
             this.result = result;
             this.key = key;
-            this.add = add;
         }
     }
 }
