@@ -1,6 +1,7 @@
 package com.ispengya.hotkey.server;
 
 import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.server.core.AppWindowRegistry;
 import com.ispengya.hotkey.server.core.RuleManager;
 import com.ispengya.hotkey.server.listener.RuleChangeListener;
 import com.ispengya.hotkey.server.nacos.NacosServerClient;
@@ -12,13 +13,9 @@ import com.ispengya.hotkey.remoting.server.NettyServerConfig;
 import com.ispengya.hotkey.remoting.server.ServerChannelManager;
 import com.ispengya.hotkey.remoting.server.ServiceRegistration;
 import com.ispengya.hotkey.server.config.HotKeyServerProperties;
-import com.ispengya.hotkey.server.core.InstanceWindowRegistry;
-import com.ispengya.hotkey.server.core.InMemoryHotKeyResultStore;
-import com.ispengya.hotkey.server.core.HotKeyComputeAlgorithm;
 import com.ispengya.hotkey.server.core.AccessReportPipeline;
 import com.ispengya.hotkey.server.nacos.NacosIntegration;
 import com.ispengya.hotkey.server.remoting.DefaultServerRequestDispatcher;
-import com.ispengya.hotkey.server.remoting.HotKeyQueryHandler;
 import com.ispengya.hotkey.server.remoting.PingRequestHandler;
 import com.ispengya.hotkey.server.remoting.ReportRequestHandler;
 import com.ispengya.hotkey.server.scheduler.HotKeyChangePublisher;
@@ -41,7 +38,6 @@ public class HotKeyServerApplication {
 
         HotKeyServerProperties properties = HotKeyServerProperties.load();
         HotKeyServerProperties.Server serverProps = properties.getServer();
-        HotKeyServerProperties.Aggregator windowRegistryProps = properties.getAggregator();
         HotKeyServerProperties.Algorithm algorithmProps = properties.getAlgorithm();
 
         // Netty config
@@ -68,15 +64,8 @@ public class HotKeyServerApplication {
         // RuleManager 是规则配置的统一入口
         RuleManager ruleManager = new RuleManager(algorithmProps.getMinCountThreshold());
 
-        InstanceWindowRegistry windowRegistry = new InstanceWindowRegistry(
-                windowRegistryProps.getWindowSizeMillis(),
-                windowRegistryProps.getWindowSlotCount()
-        );
-        InMemoryHotKeyResultStore resultStore = new InMemoryHotKeyResultStore();
-        HotKeyComputeAlgorithm algorithm = new HotKeyComputeAlgorithm(
-                algorithmProps.getMinCountThreshold(),
-                ruleManager
-        );
+        // AppWindowRegistry 按 appName 维度管理每个 key 的独立滑动窗口
+        AppWindowRegistry windowRegistry = new AppWindowRegistry(ruleManager);
 
         Serializer serializer = new Fastjson2Serializer();
 
@@ -85,14 +74,11 @@ public class HotKeyServerApplication {
         AccessReportPipeline pipeline = new AccessReportPipeline(
                 windowRegistry,
                 ruleManager,
-                algorithm,
-                resultStore,
                 changePublisher
         );
 
         // Handlers
         dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline, channelManager, properties.isDebugEnabled()));
-        dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer, properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler(properties.isDebugEnabled()));
 
         // Nacos

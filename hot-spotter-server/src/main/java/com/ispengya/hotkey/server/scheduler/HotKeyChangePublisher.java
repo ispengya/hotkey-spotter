@@ -5,7 +5,6 @@ import com.ispengya.hotkey.remoting.protocol.Command;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.remoting.server.ServerChannelManager;
-import com.ispengya.hotkey.server.model.HotKeyResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,11 +48,11 @@ public final class HotKeyChangePublisher {
         this.executor.scheduleAtFixedRate(this::flush, 10L, 10L, TimeUnit.MILLISECONDS);
     }
 
-    public void publish(HotKeyResult result, String key) {
-        if (result == null || key == null) {
+    public void publish(String appName, String key) {
+        if (appName == null || key == null) {
             return;
         }
-        queue.offer(new PushEvent(result, key));
+        queue.offer(new PushEvent(appName, key));
     }
 
     private void flush() {
@@ -62,9 +61,9 @@ public final class HotKeyChangePublisher {
                 PushEvent event = queue.take();
                 if (debugEnabled && log.isDebugEnabled()) {
                     log.debug("Dequeue hot key change. appName={}, key={}",
-                            event.result.getAppName(), event.key);
+                            event.appName, event.key);
                 }
-                sendSingle(event.result, event.key);
+                sendSingle(event.appName, event.key);
             }
         } catch (InterruptedException e) {
             log.warn("HotKeyChangePublisher flush thread interrupted");
@@ -74,24 +73,24 @@ public final class HotKeyChangePublisher {
         }
     }
 
-    private void sendSingle(HotKeyResult result, String key) {
+    private void sendSingle(String appName, String key) {
         HotKeyViewMessage view = new HotKeyViewMessage();
         HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry();
         entry.setAddedKey(key);
         Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
-        views.put(result.getAppName(), entry);
+        views.put(appName, entry);
         view.setViews(views);
         byte[] payload = serializer.serialize(view);
         Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
-        channelManager.broadcastToKey(result.getAppName(), key, command);
+        channelManager.broadcastToKey(appName, key, command);
     }
 
     private static final class PushEvent {
-        private final HotKeyResult result;
+        private final String appName;
         private final String key;
 
-        private PushEvent(HotKeyResult result, String key) {
-            this.result = result;
+        private PushEvent(String appName, String key) {
+            this.appName = appName;
             this.key = key;
         }
     }

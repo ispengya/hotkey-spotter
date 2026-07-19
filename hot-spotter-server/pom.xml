@@ -20,11 +20,10 @@
             <artifactId>hot-spotter-remoting</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <!-- hot-spotter-cache -->
+        <!-- Caffeine cache for window management -->
         <dependency>
-            <groupId>com.ispengya</groupId>
-            <artifactId>hot-spotter-cache</artifactId>
-            <version>${project.version}</version>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
         <!-- Utils -->
         <dependency>
