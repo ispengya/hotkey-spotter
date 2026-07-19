@@ -1,6 +1,7 @@
 package com.ispengya.hotkey.cli.listener;
 
 import com.ispengya.hotkey.cli.HotKeyClient;
+import com.ispengya.hotkey.cli.rule.RuleHolder;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.event.HotKeyPushEvent;
 import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
@@ -34,8 +35,9 @@ public class HotKeyPushListener {
                     return;
                 }
                 if (entry.getAddedKey() != null) {
-                    hotKeyClient.addHotKey(entry.getAddedKey(), entry.getDuration());
-                    log.debug("Hot key added: key={}, duration={}", entry.getAddedKey(), entry.getDuration());
+                    int duration = RuleHolder.getDuration(appName, entry.getAddedKey());
+                    hotKeyClient.addHotKey(entry.getAddedKey(), duration);
+                    log.debug("Hot key added: key={}, duration={}", entry.getAddedKey(), duration);
                 }
                 if (entry.getRemovedKey() != null) {
                     hotKeyClient.removeHotKey(entry.getRemovedKey());

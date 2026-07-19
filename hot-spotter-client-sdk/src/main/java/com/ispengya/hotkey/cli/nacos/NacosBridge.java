@@ -226,17 +226,37 @@ public final class NacosBridge {
                     }
                 }
 
+                // 没变化则跳过，避免无意义的事件广播和日志
+                if (addressesEqual(newAddresses, workerAddresses)) {
+                    return;
+                }
+
                 workerAddresses.clear();
                 workerAddresses.addAll(newAddresses);
 
                 // 直接通过 EventBus 发布，无需中间 Consumer
                 eventBus.post(new WorkerChangeEvent(new ArrayList<>(workerAddresses)));
 
-                log.debug("Refreshed worker addresses: {}", workerAddresses);
+                log.info("Refreshed worker addresses: {}", workerAddresses);
             } catch (Exception e) {
                 log.error("Failed to refresh worker addresses", e);
             }
         }
+    }
+
+    private static boolean addressesEqual(List<InetSocketAddress> a, List<InetSocketAddress> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        // 两边都经过 sort，直接逐个比较
+        for (int i = 0; i < a.size(); i++) {
+            InetSocketAddress ia = a.get(i);
+            InetSocketAddress ib = b.get(i);
+            if (!ia.getHostString().equals(ib.getHostString()) || ia.getPort() != ib.getPort()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -83,7 +84,10 @@ public class HotKeyExampleApplication {
         @GetMapping("/hot")
         public Map<String, Object> isHot(@RequestParam("key") String key) {
             boolean hot = hotKeyClient.isHotKey(key);
-            return Map.of("key", key, "hot", hot);
+            Map<String, Object> result = new HashMap<>();
+            result.put("key", key);
+            result.put("hot", hot);
+            return result;
         }
 
         /**
@@ -91,10 +95,10 @@ public class HotKeyExampleApplication {
          */
         @GetMapping("/stats")
         public Map<String, Object> stats() {
-            return Map.of(
-                    "appName", "example-app",
-                    "description", "Use /demo?key=xxx to test hot key detection"
-            );
+            Map<String, Object> result = new HashMap<>();
+            result.put("appName", "example-app");
+            result.put("description", "Use /demo?key=xxx to test hot key detection");
+            return result;
         }
     }
 }
