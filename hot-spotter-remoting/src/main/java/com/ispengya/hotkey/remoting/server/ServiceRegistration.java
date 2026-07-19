@@ -31,15 +31,15 @@ public final class ServiceRegistration {
     }
 
     /**
-     * 注册服务到 nacos。
+     * 注册服务到 nacos（非致命，失败不影响核心功能）。
      */
     public void register() {
         try {
             nacosClient.registerInstance(serviceName, ip, port);
             log.info("Registered to nacos: {}:{}:{}", serviceName, ip, port);
         } catch (Exception e) {
-            log.error("Failed to register to nacos", e);
-            throw new RuntimeException("Failed to register to nacos", e);
+            log.warn("Failed to register to nacos (non-fatal): {}:{}:{}, error: {}",
+                    serviceName, ip, port, e.getMessage());
         }
     }
 

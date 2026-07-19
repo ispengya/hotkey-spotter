@@ -94,7 +94,10 @@ public final class NacosBridge {
         try {
             Properties properties = new Properties();
             properties.put("serverAddr", serverAddr);
-            properties.put("namespace", namespace);
+            // 仅当 namespace 非空时设置，空字符串会导致 Nacos 连接失败
+            if (namespace != null && !namespace.isEmpty()) {
+                properties.put("namespace", namespace);
+            }
 
             this.configService = NacosFactory.createConfigService(properties);
             this.namingService = NacosFactory.createNamingService(properties);
