@@ -1,12 +1,10 @@
 package com.ispengya.hotkey.cli.nacos;
 
-import com.alibaba.fastjson2.JSON;
 import com.ispengya.hotkey.cli.rule.RuleHolder;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.common.event.RuleChangeEvent;
 import com.ispengya.hotkey.common.event.WorkerChangeEvent;
 import com.ispengya.hotkey.common.event.WorkerDisconnectEvent;
-import com.ispengya.hotkey.common.rule.KeyRule;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.config.ConfigService;
@@ -248,30 +246,7 @@ public final class NacosBridge {
     // ==================== 内部工具 ====================
 
     private RuleConfig parseRuleConfig(String appName, String config) {
-        if (config == null || config.trim().isEmpty()) {
-            return new RuleConfig(appName, new ArrayList<>());
-        }
-
-        try {
-            Map<String, Object> root = JSON.parseObject(config, Map.class);
-            if (root.containsKey("hotkey")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> hotkey = (Map<String, Object>) root.get("hotkey");
-                if (hotkey.containsKey("rules")) {
-                    List<KeyRule> rules = JSON.parseArray(
-                            JSON.toJSONString(hotkey.get("rules")),
-                            KeyRule.class
-                    );
-                    return new RuleConfig(appName, rules);
-                }
-            }
-
-            List<KeyRule> rules = JSON.parseArray(config, KeyRule.class);
-            return new RuleConfig(appName, rules);
-        } catch (Exception e) {
-            log.error("Failed to parse rule config. appName={}, config={}", appName, config, e);
-            return new RuleConfig(appName, new ArrayList<>());
-        }
+        return RuleConfig.parse(appName, config);
     }
 
     // ==================== 关闭 ====================

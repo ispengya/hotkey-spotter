@@ -114,6 +114,11 @@ public class HotKeyServerApplication {
         // 规则变更监听器：从 EventBus 订阅 RuleChangeEvent，更新 RuleManager
         new RuleChangeListener(eventBus, ruleManager);
 
+        // 当 rule.appNames 为空时，启用懒加载：首次遇到新 appName 时自动从 Nacos 拉取规则
+        if (properties.getRule().getAppNames().isEmpty()) {
+            ruleManager.enableLazyLoading(nacosClient, properties.getRule().getDataId());
+        }
+
         // Bootstrap
         HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, nacosIntegration);
         bootstrap.start();

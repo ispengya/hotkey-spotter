@@ -77,6 +77,9 @@ public final class AccessReportPipeline {
                 String appName = report.getAppName();
                 String key = report.getKey();
 
+                // 懒加载：确保该 app 的规则已加载（首次遇到时从 Nacos 拉取）
+                ruleManager.ensureAppLoaded(appName);
+
                 // 只对匹配规则的 key 进行统计和推送
                 if (!ruleManager.isInRule(appName, key)) {
                     continue;

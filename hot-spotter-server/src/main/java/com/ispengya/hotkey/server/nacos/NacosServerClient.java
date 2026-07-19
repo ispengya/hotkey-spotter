@@ -1,10 +1,8 @@
 package com.ispengya.hotkey.server.nacos;
 
-import com.alibaba.fastjson2.JSON;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.common.event.RuleChangeEvent;
 import com.ispengya.hotkey.common.nacos.NacosClient;
-import com.ispengya.hotkey.common.rule.KeyRule;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.config.ConfigService;
@@ -138,37 +136,11 @@ public class NacosServerClient implements NacosClient {
     }
 
     /**
-     * 解析规则的 JSON 配置。与 {@code NacosBridge.parseRuleConfig} 对齐：
-     * <ol>
-     *     <li>先尝试 {@code {"hotkey": {"rules": [...]}}} 格式</li>
-     *     <li>再兜底直接解析为 JSON 数组</li>
-     * </ol>
+     * 解析规则配置。委托给 {@link RuleConfig#parse(String, String)}，
+     * 支持 YAML 和 JSON 两种格式。
      */
     private RuleConfig parseRuleConfig(String appName, String config) {
-        if (config == null || config.trim().isEmpty()) {
-            return new RuleConfig(appName, new ArrayList<>());
-        }
-        try {
-            Map<String, Object> root = JSON.parseObject(config, Map.class);
-            if (root.containsKey("hotkey")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> hotkey = (Map<String, Object>) root.get("hotkey");
-                if (hotkey != null && hotkey.containsKey("rules")) {
-                    List<KeyRule> rules = JSON.parseArray(
-                            JSON.toJSONString(hotkey.get("rules")),
-                            KeyRule.class
-                    );
-                    return new RuleConfig(appName, rules);
-                }
-            }
-
-            // 兜底：直接解析为 JSON 数组
-            List<KeyRule> rules = JSON.parseArray(config, KeyRule.class);
-            return new RuleConfig(appName, rules);
-        } catch (Exception e) {
-            log.error("Failed to parse rule config. appName={}", appName, e);
-            return new RuleConfig(appName, new ArrayList<>());
-        }
+        return RuleConfig.parse(appName, config);
     }
 
     @Override
