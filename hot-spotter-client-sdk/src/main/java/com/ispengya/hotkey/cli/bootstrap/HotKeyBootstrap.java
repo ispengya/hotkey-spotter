@@ -1,7 +1,11 @@
 package com.ispengya.hotkey.cli.bootstrap;
 
+import com.ispengya.hotkey.cli.HotKeyClient;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.detect.HotKeyReporter;
+import com.ispengya.hotkey.cli.listener.HotKeyPushListener;
+import com.ispengya.hotkey.cli.listener.RuleChangeListener;
+import com.ispengya.hotkey.cli.listener.WorkerChangeListener;
 import com.ispengya.hotkey.cli.nacos.NacosBridge;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.remoting.client.HotKeyRemotingClient;
@@ -26,19 +30,22 @@ public final class HotKeyBootstrap {
     private final NettyClient nettyClient;
     private final HotKeyRemotingClient remotingClient;
     private final HotKeyReporter reporter;
+    private final HotKeyClient hotKeyClient;
 
     public HotKeyBootstrap(HotKeyProperties properties,
                            EventBus eventBus,
                            NacosBridge nacosBridge,
                            NettyClient nettyClient,
                            HotKeyRemotingClient remotingClient,
-                           HotKeyReporter reporter) {
+                           HotKeyReporter reporter,
+                           HotKeyClient hotKeyClient) {
         this.properties = properties;
         this.eventBus = eventBus;
         this.nacosBridge = nacosBridge;
         this.nettyClient = nettyClient;
         this.remotingClient = remotingClient;
         this.reporter = reporter;
+        this.hotKeyClient = hotKeyClient;
     }
 
     /**
@@ -50,20 +57,26 @@ public final class HotKeyBootstrap {
         // 1. 初始化 Nacos 连接（创建 ConfigService / NamingService）
         nacosBridge.init();
 
-        // 2. 启动 Netty（先注册 WorkerChangeEvent 监听，再触发 Worker 发现）
+        // 2. 注册规则变更监听器（必须在 syncRules 之前，确保首次拉取规则时也能被捕获）
+        new RuleChangeListener(eventBus);
+
+        // 3. 启动 Netty
         nettyClient.start();
 
-        // 3. 同步规则配置
+        // 4. 注册 Worker 变更监听器（必须在 startWorkerDiscovery 之前）
+        new WorkerChangeListener(eventBus, nettyClient);
+
+        // 5. 注册热 Key 推送监听器（必须在 startWorkerDiscovery 之前）
+        new HotKeyPushListener(eventBus, hotKeyClient);
+
+        // 6. 同步规则配置
         HotKeyProperties.NacosConfig nacos = properties.getNacos();
         nacosBridge.syncRules(nacos.getDataId(), nacos.getGroup(), properties.getAppName());
 
-        // 4. 启动 Worker 发现 → 发布 WorkerChangeEvent → NettyClient 收到后懒建连
+        // 7. 启动 Worker 发现 → 发布 WorkerChangeEvent → NettyClient 收到后懒建连
         nacosBridge.startWorkerDiscovery(nacos.getServiceName());
 
-        // 5. 注册推送通道
-        remotingClient.registerPushChannel();
-
-        // 6. 启动上报器（监听 HotKeyPushEvent）
+        // 8. 启动上报器
         reporter.start();
 
         log.info("HotKey client started successfully");

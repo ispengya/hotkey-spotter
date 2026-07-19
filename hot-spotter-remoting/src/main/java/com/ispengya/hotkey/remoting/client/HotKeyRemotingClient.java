@@ -2,7 +2,6 @@ package com.ispengya.hotkey.remoting.client;
 
 import com.ispengya.hotkey.remoting.message.AccessReportMessage;
 import com.ispengya.hotkey.remoting.message.HotKeyQueryRequest;
-import com.ispengya.hotkey.remoting.message.PushChannelRegisterMessage;
 import com.ispengya.hotkey.remoting.message.HotKeyViewMessage;
 import com.ispengya.hotkey.remoting.protocol.Command;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
@@ -44,13 +43,6 @@ public final class HotKeyRemotingClient {
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.ACCESS_REPORT, bytes);
         sender.sendOneWay(command, key);  // 按 key hash 路由到对应 Worker
-    }
-
-    public void registerPushChannel() {
-        PushChannelRegisterMessage message = new PushChannelRegisterMessage(appName);
-        byte[] bytes = serializer.serialize(message);
-        Command command = new Command(CommandType.PUSH_CHANNEL_REGISTER, bytes);
-        sender.sendOneWay(command);
     }
 
     public HotKeyViewMessage queryAllHotKeys(Map<String, Long> lastVersions, long timeoutMillis) {

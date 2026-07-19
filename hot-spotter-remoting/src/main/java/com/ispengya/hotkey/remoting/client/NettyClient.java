@@ -1,9 +1,9 @@
 package com.ispengya.hotkey.remoting.client;
 
 import com.ispengya.hotkey.common.event.EventBus;
-import com.ispengya.hotkey.common.event.WorkerChangeEvent;
 import com.ispengya.hotkey.remoting.codec.CommandDecoder;
 import com.ispengya.hotkey.remoting.codec.CommandEncoder;
+import com.ispengya.hotkey.remoting.protocol.Serializer;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -37,6 +37,7 @@ public final class NettyClient {
     private static final Logger log = LoggerFactory.getLogger(NettyClient.class);
 
     private final EventBus eventBus;
+    private final Serializer serializer;
     private final int connectTimeoutMillis;
     private final int workerThreads;
     private final int maxFrameLength;
@@ -55,21 +56,19 @@ public final class NettyClient {
      */
     private final ConcurrentHashMap<InetSocketAddress, Channel> channelMap = new ConcurrentHashMap<>();
 
-    public NettyClient(int connectTimeoutMillis, int workerThreads, int maxFrameLength, EventBus eventBus) {
+    public NettyClient(int connectTimeoutMillis, int workerThreads, int maxFrameLength,
+                        EventBus eventBus, Serializer serializer) {
         this.connectTimeoutMillis = connectTimeoutMillis;
         this.workerThreads = workerThreads;
         this.maxFrameLength = maxFrameLength;
         this.eventBus = eventBus;
+        this.serializer = serializer;
     }
 
     /**
-     * 启动：注册 WorkerChangeEvent 监听，初始化 Bootstrap。
+     * 启动：初始化 Bootstrap。
      */
     public void start() {
-        eventBus.register(WorkerChangeEvent.class, event -> {
-            onWorkerChange(event.getWorkers());
-        });
-
         workerGroup = new NioEventLoopGroup(workerThreads);
         bootstrap = new Bootstrap();
         bootstrap.group(workerGroup)
@@ -83,7 +82,7 @@ public final class NettyClient {
                         ChannelPipeline p = ch.pipeline();
                         p.addLast(new CommandDecoder(maxFrameLength));
                         p.addLast(new CommandEncoder());
-                        p.addLast(new ClientInboundHandler());
+                        p.addLast(new ClientInboundHandler(eventBus, serializer));
                     }
                 });
 
@@ -165,7 +164,7 @@ public final class NettyClient {
     /**
      * Worker 列表变更：排序、更新列表、关闭已下线 Worker 的 Channel。
      */
-    private void onWorkerChange(List<InetSocketAddress> newAddresses) {
+    public void onWorkerChange(List<InetSocketAddress> newAddresses) {
         // 排序保证全网 hash 一致
         newAddresses.sort(Comparator.comparing(a -> a.getHostString() + ":" + a.getPort()));
         this.sortedWorkers = new CopyOnWriteArrayList<>(newAddresses);

@@ -68,13 +68,15 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hotkeyNettyClient(HotKeyProperties properties,
-                                          EventBus eventBus) {
+                                          EventBus eventBus,
+                                          Serializer serializer) {
         HotKeyProperties.ClientConfig clientConfig = properties.getClient();
         return new NettyClient(
                 clientConfig.getConnectTimeoutMillis(),
                 clientConfig.getWorkerThreads(),
                 clientConfig.getMaxFrameBytes(),
-                eventBus
+                eventBus,
+                serializer
         );
     }
 
@@ -97,16 +99,12 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public HotKeyReporter hotkeyHotKeyReporter(HotKeyProperties properties,
-                                                HotKeyRemotingClient remotingClient,
-                                                EventBus eventBus) {
+                                                HotKeyRemotingClient remotingClient) {
         HotKeyProperties.DetectConfig detectConfig = properties.getDetect();
         return new HotKeyReporter(
                 remotingClient,
                 properties.getAppName(),
-                detectConfig.getReportPeriodMillis(),
-                detectConfig.getQueryPeriodMillis(),
-                detectConfig.getQueryTimeoutMillis(),
-                eventBus
+                detectConfig.getReportPeriodMillis()
         );
     }
 
@@ -114,23 +112,8 @@ public class HotKeyAutoConfiguration {
     @ConditionalOnMissingBean
     public HotKeyClient hotkeyHotKeyClient(HotKeyReporter reporter,
                                             HotKeyProperties properties) {
-        String appName = properties.getAppName();
-        CacheHolder cacheHolder = new CacheHolder(appName);
-        HotKeyClient client = new HotKeyClient(reporter, cacheHolder);
-
-        reporter.setHotKeyListener(new HotKeyReporter.HotKeyListener() {
-            @Override
-            public void onHotKeyAdded(String key, int durationSeconds) {
-                client.addHotKey(key, durationSeconds);
-            }
-
-            @Override
-            public void onHotKeyRemoved(String key) {
-                client.removeHotKey(key);
-            }
-        });
-
-        return client;
+        CacheHolder cacheHolder = new CacheHolder(properties.getAppName());
+        return new HotKeyClient(reporter, cacheHolder);
     }
 
     // ==================== 启动器 ====================
@@ -142,14 +125,16 @@ public class HotKeyAutoConfiguration {
                                             NacosBridge nacosBridge,
                                             NettyClient nettyClient,
                                             HotKeyRemotingClient remotingClient,
-                                            HotKeyReporter reporter) {
+                                            HotKeyReporter reporter,
+                                            HotKeyClient hotKeyClient) {
         HotKeyBootstrap bootstrap = new HotKeyBootstrap(
                 properties,
                 eventBus,
                 nacosBridge,
                 nettyClient,
                 remotingClient,
-                reporter
+                reporter,
+                hotKeyClient
         );
         bootstrap.start();
         return bootstrap;

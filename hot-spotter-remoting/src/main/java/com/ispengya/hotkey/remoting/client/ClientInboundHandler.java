@@ -28,12 +28,12 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
 
     private static final Map<Long, CompletableFuture<Command>> FUTURES = new ConcurrentHashMap<>();
 
-    private static volatile EventBus eventBus;
-    private static volatile Serializer serializer;
+    private final EventBus eventBus;
+    private final Serializer serializer;
 
-    public static void init(EventBus eventBus, Serializer serializer) {
-        ClientInboundHandler.eventBus = eventBus;
-        ClientInboundHandler.serializer = serializer;
+    public ClientInboundHandler(EventBus eventBus, Serializer serializer) {
+        this.eventBus = eventBus;
+        this.serializer = serializer;
     }
 
     public static void registerFuture(long requestId, CompletableFuture<Command> future) {
@@ -63,15 +63,11 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
 
         // 推送消息 -> 发布到 EventBus
         if (msg.getType() == CommandType.HOT_KEY_PUSH) {
-            EventBus bus = eventBus;
-            Serializer ser = serializer;
-            if (bus != null && ser != null) {
-                try {
-                    HotKeyViewMessage message = ser.deserialize(msg.getPayload(), HotKeyViewMessage.class);
-                    bus.post(new HotKeyPushEvent(message));
-                } catch (Exception e) {
-                    log.error("Failed to deserialize push message", e);
-                }
+            try {
+                HotKeyViewMessage message = serializer.deserialize(msg.getPayload(), HotKeyViewMessage.class);
+                eventBus.post(new HotKeyPushEvent(message));
+            } catch (Exception e) {
+                log.error("Failed to deserialize push message", e);
             }
         }
     }
