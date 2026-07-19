@@ -1,6 +1,10 @@
 package com.ispengya.hotkey.server.nacos;
 
+import com.alibaba.fastjson2.JSON;
+import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.common.event.RuleChangeEvent;
 import com.ispengya.hotkey.common.nacos.NacosClient;
+import com.ispengya.hotkey.common.rule.KeyRule;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.config.ConfigService;
@@ -22,7 +26,9 @@ import java.util.concurrent.Executor;
 /**
  * Nacos 服务端客户端实现。
  *
- * <p>服务端使用的 Nacos 客户端，实现 NacosClient 接口。</p>
+ * <p>服务端使用的 Nacos 客户端，实现 NacosClient 接口。
+ * 规则变更通过 {@link EventBus} 发布 {@link RuleChangeEvent}，
+ * 与 Client 侧 {@code NacosBridge} 保持一致的事件模型。</p>
  *
  * @author ispengya
  */
@@ -32,15 +38,16 @@ public class NacosServerClient implements NacosClient {
 
     private final String serverAddr;
     private final String namespace;
+    private final EventBus eventBus;
     private ConfigService configService;
     private NamingService namingService;
 
     private final Map<String, RuleConfig> ruleConfigCache = new ConcurrentHashMap<>();
-    private final List<RuleChangeListener> ruleChangeListeners = new ArrayList<>();
 
-    public NacosServerClient(String serverAddr, String namespace) {
+    public NacosServerClient(String serverAddr, String namespace, EventBus eventBus) {
         this.serverAddr = serverAddr;
         this.namespace = namespace;
+        this.eventBus = eventBus;
     }
 
     @Override
@@ -112,7 +119,7 @@ public class NacosServerClient implements NacosClient {
                     log.info("Rule config changed. group={}, config={}", group, configInfo);
                     RuleConfig ruleConfig = parseRuleConfig(group, configInfo);
                     ruleConfigCache.put(group, ruleConfig);
-                    notifyRuleChange(group, ruleConfig);
+                    eventBus.post(new RuleChangeEvent(ruleConfig));
                 }
             });
         } catch (NacosException e) {
@@ -130,32 +137,37 @@ public class NacosServerClient implements NacosClient {
         return new ConcurrentHashMap<>(ruleConfigCache);
     }
 
-    @Override
-    public void addRuleChangeListener(RuleChangeListener listener) {
-        ruleChangeListeners.add(listener);
-    }
-
+    /**
+     * 解析规则的 JSON 配置。与 {@code NacosBridge.parseRuleConfig} 对齐：
+     * <ol>
+     *     <li>先尝试 {@code {"hotkey": {"rules": [...]}}} 格式</li>
+     *     <li>再兜底直接解析为 JSON 数组</li>
+     * </ol>
+     */
     private RuleConfig parseRuleConfig(String appName, String config) {
         if (config == null || config.trim().isEmpty()) {
             return new RuleConfig(appName, new ArrayList<>());
         }
         try {
-            List<com.ispengya.hotkey.common.rule.KeyRule> rules =
-                    com.alibaba.fastjson2.JSON.parseArray(config, com.ispengya.hotkey.common.rule.KeyRule.class);
+            Map<String, Object> root = JSON.parseObject(config, Map.class);
+            if (root.containsKey("hotkey")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> hotkey = (Map<String, Object>) root.get("hotkey");
+                if (hotkey != null && hotkey.containsKey("rules")) {
+                    List<KeyRule> rules = JSON.parseArray(
+                            JSON.toJSONString(hotkey.get("rules")),
+                            KeyRule.class
+                    );
+                    return new RuleConfig(appName, rules);
+                }
+            }
+
+            // 兜底：直接解析为 JSON 数组
+            List<KeyRule> rules = JSON.parseArray(config, KeyRule.class);
             return new RuleConfig(appName, rules);
         } catch (Exception e) {
             log.error("Failed to parse rule config. appName={}", appName, e);
             return new RuleConfig(appName, new ArrayList<>());
-        }
-    }
-
-    private void notifyRuleChange(String appName, RuleConfig ruleConfig) {
-        for (RuleChangeListener listener : ruleChangeListeners) {
-            try {
-                listener.onRuleChange(appName, ruleConfig);
-            } catch (Exception e) {
-                log.error("Error notifying rule change listener", e);
-            }
         }
     }
 

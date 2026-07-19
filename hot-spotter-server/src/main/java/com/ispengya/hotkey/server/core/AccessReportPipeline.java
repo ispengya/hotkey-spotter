@@ -14,6 +14,7 @@ public final class AccessReportPipeline {
     private static final int DEFAULT_QUEUE_CAPACITY = 2_000_000;
 
     private final InstanceWindowRegistry windowRegistry;
+    private final RuleManager ruleManager;
     private final HotKeyComputeAlgorithm algorithm;
     private final HotKeyResultStore resultStore;
     private final HotKeyChangePublisher changePublisher;
@@ -22,10 +23,12 @@ public final class AccessReportPipeline {
     private final ExecutorService consumerExecutor;
 
     public AccessReportPipeline(InstanceWindowRegistry windowRegistry,
+                                RuleManager ruleManager,
                                 HotKeyComputeAlgorithm algorithm,
                                 HotKeyResultStore resultStore,
                                 HotKeyChangePublisher changePublisher) {
         this.windowRegistry = windowRegistry;
+        this.ruleManager = ruleManager;
         this.algorithm = algorithm;
         this.resultStore = resultStore;
         this.changePublisher = changePublisher;
@@ -65,11 +68,18 @@ public final class AccessReportPipeline {
         while (true) {
             try {
                 AccessReport report = queue.take();
-                String owner = report.getAppName();
-                windowRegistry.selectWindowForApp(owner).addReport(report);
+                String appName = report.getAppName();
+                String key = report.getKey();
+
+                // 只对匹配规则的 key 进行统计和计算
+                if (!ruleManager.isInRule(appName, key)) {
+                    continue;
+                }
+
+                windowRegistry.selectWindowForApp(appName).addReport(report);
                 HotKeyComputeTask.computeAndPublish(
-                        report.getAppName(),
-                        report.getKey(),
+                        appName,
+                        key,
                         windowRegistry,
                         algorithm,
                         resultStore,

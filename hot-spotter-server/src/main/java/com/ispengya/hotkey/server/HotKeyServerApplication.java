@@ -1,5 +1,8 @@
 package com.ispengya.hotkey.server;
 
+import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.server.core.RuleManager;
+import com.ispengya.hotkey.server.listener.RuleChangeListener;
 import com.ispengya.hotkey.server.nacos.NacosServerClient;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
@@ -59,14 +62,20 @@ public class HotKeyServerApplication {
         DefaultServerRequestDispatcher dispatcher = new DefaultServerRequestDispatcher();
         NettyServer nettyServer = new NettyServer(serverConfig, channelManager, dispatcher);
 
-        // Core
+        // Core — EventBus 用于规则变更等事件广播
+        EventBus eventBus = new EventBus();
+
+        // RuleManager 是规则配置的统一入口
+        RuleManager ruleManager = new RuleManager(algorithmProps.getMinCountThreshold());
+
         InstanceWindowRegistry windowRegistry = new InstanceWindowRegistry(
                 windowRegistryProps.getWindowSizeMillis(),
                 windowRegistryProps.getWindowSlotCount()
         );
         InMemoryHotKeyResultStore resultStore = new InMemoryHotKeyResultStore();
         HotKeyComputeAlgorithm algorithm = new HotKeyComputeAlgorithm(
-                algorithmProps.getMinCountThreshold()
+                algorithmProps.getMinCountThreshold(),
+                ruleManager
         );
 
         Serializer serializer = new Fastjson2Serializer();
@@ -75,6 +84,7 @@ public class HotKeyServerApplication {
         HotKeyChangePublisher changePublisher = new HotKeyChangePublisher(channelManager, serializer, properties.isDebugEnabled());
         AccessReportPipeline pipeline = new AccessReportPipeline(
                 windowRegistry,
+                ruleManager,
                 algorithm,
                 resultStore,
                 changePublisher
@@ -88,7 +98,8 @@ public class HotKeyServerApplication {
         // Nacos
         NacosServerClient nacosClient = new NacosServerClient(
                 properties.getNacos().getServerAddr(),
-                properties.getNacos().getNamespace()
+                properties.getNacos().getNamespace(),
+                eventBus
         );
         try {
             nacosClient.init();
@@ -106,11 +117,16 @@ public class HotKeyServerApplication {
                 port
         );
 
-        NacosIntegration nacosIntegration = new NacosIntegration(nacosClient, serviceRegistration);
-        nacosIntegration.setRuleChangeListener((appName, ruleConfig) -> {
-            algorithm.updateRuleConfig(ruleConfig);
-            log.info("Rule config updated for app: {}", appName);
-        });
+        NacosIntegration nacosIntegration = new NacosIntegration(
+                nacosClient,
+                serviceRegistration,
+                ruleManager,
+                properties.getRule().getDataId(),
+                properties.getRule().getAppNames()
+        );
+
+        // 规则变更监听器：从 EventBus 订阅 RuleChangeEvent，更新 RuleManager
+        new RuleChangeListener(eventBus, ruleManager);
 
         // Bootstrap
         HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, nacosIntegration);

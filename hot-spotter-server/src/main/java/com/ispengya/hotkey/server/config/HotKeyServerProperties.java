@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 public final class HotKeyServerProperties {
@@ -16,17 +19,20 @@ public final class HotKeyServerProperties {
     private final Aggregator aggregator;
     private final Algorithm algorithm;
     private final Nacos nacos;
+    private final Rule rule;
     private final boolean debugEnabled;
 
     private HotKeyServerProperties(Server server,
                                    Aggregator aggregator,
                                    Algorithm algorithm,
                                    Nacos nacos,
+                                   Rule rule,
                                    boolean debugEnabled) {
         this.server = server;
         this.aggregator = aggregator;
         this.algorithm = algorithm;
         this.nacos = nacos;
+        this.rule = rule;
         this.debugEnabled = debugEnabled;
     }
 
@@ -69,9 +75,14 @@ public final class HotKeyServerProperties {
                 props.getProperty("nacos.serviceName", "hot-spotter-server")
         );
 
+        Rule rule = new Rule(
+                props.getProperty("rule.dataId", "hotkey-config"),
+                parseAppNames(props.getProperty("rule.appNames", ""))
+        );
+
         boolean debugEnabled = getBoolean(props, "logging.debugEnabled", false);
 
-        return new HotKeyServerProperties(server, aggregator, algorithm, nacos, debugEnabled);
+        return new HotKeyServerProperties(server, aggregator, algorithm, nacos, rule, debugEnabled);
     }
 
     public Server getServer() {
@@ -90,8 +101,19 @@ public final class HotKeyServerProperties {
         return nacos;
     }
 
+    public Rule getRule() {
+        return rule;
+    }
+
     public boolean isDebugEnabled() {
         return debugEnabled;
+    }
+
+    private static List<String> parseAppNames(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(value.trim().split("\\s*,\\s*"));
     }
 
     private static int getInt(Properties props, String key, int defaultValue) {
@@ -135,6 +157,8 @@ public final class HotKeyServerProperties {
         log.warn("Invalid boolean for key {}, value {}. Using default {}", key, value, defaultValue);
         return defaultValue;
     }
+
+    // ==================== inner classes ====================
 
     public static final class Server {
 
@@ -259,6 +283,25 @@ public final class HotKeyServerProperties {
 
         public String getServiceName() {
             return serviceName;
+        }
+    }
+
+    public static final class Rule {
+
+        private final String dataId;
+        private final List<String> appNames;
+
+        public Rule(String dataId, List<String> appNames) {
+            this.dataId = dataId;
+            this.appNames = appNames;
+        }
+
+        public String getDataId() {
+            return dataId;
+        }
+
+        public List<String> getAppNames() {
+            return appNames;
         }
     }
 }

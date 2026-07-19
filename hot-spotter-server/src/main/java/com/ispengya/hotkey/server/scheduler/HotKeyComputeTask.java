@@ -37,7 +37,7 @@ public final class HotKeyComputeTask {
         AggregatedKeyStat stat = windowRegistry
                 .selectWindowForApp(appName)
                 .snapshotForKey(key);
-        if (!algorithm.isHot(stat)) {
+        if (!algorithm.isHot(appName, stat)) {
             return;
         }
 
