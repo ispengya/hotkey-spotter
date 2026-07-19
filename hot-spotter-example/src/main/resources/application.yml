@@ -1,6 +1,8 @@
 spring:
   application:
     name: hot-spotter-example
+  main:
+    web-application-type: servlet
 
 server:
   port: 8080
@@ -9,5 +11,16 @@ hotkey:
   enabled: true
   app-name: example-app
   client:
-    server-addresses:
-      - 127.0.0.1:8888
+    local-cache-maximum-size: 2000
+    local-cache-expire-after-write-millis: 300000
+  detect:
+    report-period-millis: 5000
+  nacos:
+    enabled: true
+    server-addr: 127.0.0.1:8848
+    namespace:
+    data-id: hotkey-config
+
+logging:
+  level:
+    com.ispengya: DEBUG

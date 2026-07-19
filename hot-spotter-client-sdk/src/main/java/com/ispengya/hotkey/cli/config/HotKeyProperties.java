@@ -2,8 +2,6 @@ package com.ispengya.hotkey.cli.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.List;
-
 /**
  * HotKeyProperties 定义 hotkey 客户端在 Spring Boot 中的外部化配置，
  * 通过配置文件中以 "hotkey" 为前缀的属性进行绑定。
@@ -98,8 +96,6 @@ public class HotKeyProperties {
 
     public static class ClientConfig {
 
-        private List<String> serverAddresses;
-
         private Integer connectTimeoutMillis = 3000;
 
         private Integer workerThreads = 4;
@@ -109,14 +105,6 @@ public class HotKeyProperties {
         private Long localCacheMaximumSize = 1000L;
 
         private Long localCacheExpireAfterWriteMillis = 5 * 60 * 1000L;
-
-        public List<String> getServerAddresses() {
-            return serverAddresses;
-        }
-
-        public void setServerAddresses(List<String> serverAddresses) {
-            this.serverAddresses = serverAddresses;
-        }
 
         public Integer getConnectTimeoutMillis() {
             return connectTimeoutMillis;
