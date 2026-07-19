@@ -1,6 +1,7 @@
 package com.ispengya.hotkey.remoting.client;
 
 import com.ispengya.hotkey.common.event.EventBus;
+import com.ispengya.hotkey.common.event.WorkerDisconnectEvent;
 import com.ispengya.hotkey.remoting.codec.CommandDecoder;
 import com.ispengya.hotkey.remoting.codec.CommandEncoder;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
@@ -9,6 +10,7 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,6 +82,8 @@ public final class NettyClient {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ChannelPipeline p = ch.pipeline();
+                        // 60s 读空闲 → 超时断连；30s 写空闲 → 发送心跳 PING
+                        p.addLast(new IdleStateHandler(60, 30, 0));
                         p.addLast(new CommandDecoder(maxFrameLength));
                         p.addLast(new CommandEncoder());
                         p.addLast(new ClientInboundHandler(eventBus, serializer));
@@ -150,6 +154,8 @@ public final class NettyClient {
                 ch.closeFuture().addListener(f -> {
                     channelMap.remove(address, ch);
                     log.info("Worker disconnected: {}", address);
+                    // 连接断开 → 通知 NacosBridge 立即刷新 Worker 列表
+                    eventBus.post(new WorkerDisconnectEvent());
                 });
                 channelMap.put(address, ch);
                 log.info("Connected to worker: {}", address);

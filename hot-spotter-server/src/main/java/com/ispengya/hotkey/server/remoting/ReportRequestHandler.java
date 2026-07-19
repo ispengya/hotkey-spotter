@@ -4,6 +4,7 @@ import com.ispengya.hotkey.remoting.message.AccessReportMessage;
 import com.ispengya.hotkey.remoting.protocol.Command;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
+import com.ispengya.hotkey.remoting.server.ServerChannelManager;
 import com.ispengya.hotkey.server.core.AccessReportPipeline;
 import com.ispengya.hotkey.server.model.AccessReport;
 import io.netty.channel.ChannelHandlerContext;
@@ -31,22 +32,16 @@ public final class ReportRequestHandler implements RequestHandler {
 
     private final Serializer serializer;
     private final AccessReportPipeline pipeline;
+    private final ServerChannelManager channelManager;
     private final boolean debugEnabled;
 
-    /**
-     * 构造上报请求处理器。
-     *
-     * <p>注入实例窗口注册表、计算算法、结果存储及推送组件，用于在队列消费阶段完成
-     * “写入滑动窗口 + 计算热 key + 推送”的完整链路。</p>
-     *
-     * @param serializer      序列化器
-     * @param pipeline        上报存储与消费管道
-     */
     public ReportRequestHandler(Serializer serializer,
                                 AccessReportPipeline pipeline,
+                                ServerChannelManager channelManager,
                                 boolean debugEnabled) {
         this.serializer = serializer;
         this.pipeline = pipeline;
+        this.channelManager = channelManager;
         this.debugEnabled = debugEnabled;
     }
 
@@ -56,6 +51,12 @@ public final class ReportRequestHandler implements RequestHandler {
             AccessReportMessage message = serializer.deserialize(command.getPayload(), AccessReportMessage.class);
             if (message == null) {
                 return;
+            }
+
+            // 收到首次上报时自动将该 channel 注册为推送通道（Plan B：无需独立注册协议）
+            String appName = message.getAppName();
+            if (appName != null && !appName.isEmpty()) {
+                channelManager.registerPushChannel(appName, ctx.channel());
             }
 
             Map<String, Integer> counts = message.getKeyAccessCounts();

@@ -5,6 +5,7 @@ import com.ispengya.hotkey.cli.rule.RuleHolder;
 import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.common.event.RuleChangeEvent;
 import com.ispengya.hotkey.common.event.WorkerChangeEvent;
+import com.ispengya.hotkey.common.event.WorkerDisconnectEvent;
 import com.ispengya.hotkey.common.rule.KeyRule;
 import com.ispengya.hotkey.common.rule.RuleConfig;
 import com.alibaba.nacos.api.NacosFactory;
@@ -69,6 +70,16 @@ public final class NacosBridge {
         t.setDaemon(true);
         return t;
     });
+
+    /**
+     * 当前 Worker 服务名，由 startWorkerDiscovery 设置，供断连刷新使用。
+     */
+    private volatile String currentServiceName;
+
+    /**
+     * refreshWorkerAddresses 的同步锁，保证 clear + addAll + post 原子性。
+     */
+    private final Object refreshLock = new Object();
 
     public NacosBridge(String serverAddr, String namespace, EventBus eventBus) {
         this.serverAddr = serverAddr;
@@ -171,6 +182,8 @@ public final class NacosBridge {
      * 启动 Worker 发现：首次拉取 + 订阅变更 + 定时兜底刷新。
      */
     public void startWorkerDiscovery(String serviceName) {
+        this.currentServiceName = serviceName;
+
         // 首次拉取并发布
         refreshWorkerAddresses(serviceName);
 
@@ -189,28 +202,39 @@ public final class NacosBridge {
                 () -> refreshWorkerAddresses(serviceName),
                 30, 30, TimeUnit.SECONDS);
 
+        // Channel 断连时立即刷新 Worker 列表，不等待 30s 定时轮询
+        eventBus.register(WorkerDisconnectEvent.class, e -> {
+            String svc = currentServiceName;
+            if (svc != null) {
+                log.info("Worker channel disconnected, refreshing immediately...");
+                refreshWorkerAddresses(svc);
+            }
+        });
+
         log.info("Worker discovery started. serviceName={}, workers={}", serviceName, workerAddresses);
     }
 
     private void refreshWorkerAddresses(String serviceName) {
-        try {
-            List<Instance> instances = namingService.getAllInstances(serviceName);
-            List<InetSocketAddress> newAddresses = new ArrayList<>();
-            for (Instance instance : instances) {
-                if (instance.isEnabled() && instance.isHealthy()) {
-                    newAddresses.add(new InetSocketAddress(instance.getIp(), instance.getPort()));
+        synchronized (refreshLock) {
+            try {
+                List<Instance> instances = namingService.getAllInstances(serviceName);
+                List<InetSocketAddress> newAddresses = new ArrayList<>();
+                for (Instance instance : instances) {
+                    if (instance.isEnabled() && instance.isHealthy()) {
+                        newAddresses.add(new InetSocketAddress(instance.getIp(), instance.getPort()));
+                    }
                 }
+
+                workerAddresses.clear();
+                workerAddresses.addAll(newAddresses);
+
+                // 直接通过 EventBus 发布，无需中间 Consumer
+                eventBus.post(new WorkerChangeEvent(new ArrayList<>(workerAddresses)));
+
+                log.debug("Refreshed worker addresses: {}", workerAddresses);
+            } catch (Exception e) {
+                log.error("Failed to refresh worker addresses", e);
             }
-
-            workerAddresses.clear();
-            workerAddresses.addAll(newAddresses);
-
-            // 直接通过 EventBus 发布，无需中间 Consumer
-            eventBus.post(new WorkerChangeEvent(new ArrayList<>(workerAddresses)));
-
-            log.debug("Refreshed worker addresses: {}", workerAddresses);
-        } catch (Exception e) {
-            log.error("Failed to refresh worker addresses", e);
         }
     }
 

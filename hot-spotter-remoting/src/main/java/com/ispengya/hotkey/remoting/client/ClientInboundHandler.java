@@ -8,6 +8,8 @@ import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +72,24 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
                 log.error("Failed to deserialize push message", e);
             }
         }
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof IdleStateEvent) {
+            IdleStateEvent e = (IdleStateEvent) evt;
+            if (e.state() == IdleState.READER_IDLE) {
+                // 60s 无数据收到 → 连接超时，关闭连接 → closeFuture 发布 WorkerDisconnectEvent
+                ctx.close();
+                return;
+            }
+            if (e.state() == IdleState.WRITER_IDLE) {
+                // 30s 无数据发送 → 发送心跳 PING
+                ctx.writeAndFlush(new Command(CommandType.ADMIN_PING, null));
+                return;
+            }
+        }
+        super.userEventTriggered(ctx, evt);
     }
 
     @Override

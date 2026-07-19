@@ -17,7 +17,6 @@ import com.ispengya.hotkey.server.nacos.NacosIntegration;
 import com.ispengya.hotkey.server.remoting.DefaultServerRequestDispatcher;
 import com.ispengya.hotkey.server.remoting.HotKeyQueryHandler;
 import com.ispengya.hotkey.server.remoting.PingRequestHandler;
-import com.ispengya.hotkey.server.remoting.PushChannelRegisterHandler;
 import com.ispengya.hotkey.server.remoting.ReportRequestHandler;
 import com.ispengya.hotkey.server.scheduler.HotKeyScheduler;
 import com.ispengya.hotkey.server.scheduler.HotKeyComputeTask;
@@ -87,10 +86,9 @@ public class HotKeyServerApplication {
                 changePublisher
         );
 
-        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline, properties.isDebugEnabled()));
+        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(serializer, pipeline, channelManager, properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer, properties.isDebugEnabled()));
         dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler(properties.isDebugEnabled()));
-        dispatcher.registerHandler(CommandType.PUSH_CHANNEL_REGISTER, new PushChannelRegisterHandler(channelManager, serializer));
 
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(
                 schedulerProps.getCorePoolSize()
