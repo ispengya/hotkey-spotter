@@ -125,12 +125,8 @@ public final class HotKeyChangePublisher {
         view.setViews(views);
         byte[] payload = serializer.serialize(view);
         Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
-        String appName = result.getAppName();
-        if (appName == null || appName.isEmpty()) {
-            channelManager.broadcastOnPushChannels(command);
-        } else {
-            channelManager.broadcastToApp(appName, command);
-        }
+        // 精确推送到真正访问过该 key 的 Channel 集合，而非 app 级广播
+        channelManager.broadcastToKey(result.getAppName(), key, command);
     }
 
     private static final class PushEvent {

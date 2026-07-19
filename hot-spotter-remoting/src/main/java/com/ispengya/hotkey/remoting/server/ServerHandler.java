@@ -34,7 +34,7 @@ public final class ServerHandler extends SimpleChannelInboundHandler<Command> {
      */
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        channelManager.register(ctx.channel());
+        // no-op：推送通道在首次上报时按 appName:key 延迟注册
     }
 
     /**

@@ -53,12 +53,6 @@ public final class ReportRequestHandler implements RequestHandler {
                 return;
             }
 
-            // 收到首次上报时自动将该 channel 注册为推送通道（Plan B：无需独立注册协议）
-            String appName = message.getAppName();
-            if (appName != null && !appName.isEmpty()) {
-                channelManager.registerPushChannel(appName, ctx.channel());
-            }
-
             Map<String, Integer> counts = message.getKeyAccessCounts();
             if (debugEnabled && log.isDebugEnabled()) {
                 int size = counts == null ? 0 : counts.size();
@@ -72,6 +66,9 @@ public final class ReportRequestHandler implements RequestHandler {
                     if (count == null || count <= 0) {
                         continue;
                     }
+                    // 以 appName:key 为粒度维护推送通道，后续热 key 推送仅投递到真正访问过该 key 的 client
+                    channelManager.registerKeyChannel(message.getAppName(), key, ctx.channel());
+
                     AccessReport report = new AccessReport(
                             message.getAppName(),
                             key,
