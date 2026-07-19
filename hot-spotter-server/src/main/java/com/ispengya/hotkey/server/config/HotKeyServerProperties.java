@@ -48,6 +48,11 @@ public final class HotKeyServerProperties {
             log.warn("Failed to load {}, using defaults", DEFAULT_CONFIG_NAME, e);
         }
 
+        // System properties 覆盖文件配置（支持 -Dserver.port=xxx 启动多实例）
+        for (String name : System.getProperties().stringPropertyNames()) {
+            props.put(name, System.getProperty(name));
+        }
+
         Server server = new Server(
                 getInt(props, "server.port", 8888),
                 getInt(props, "server.bossThreads", 1),
