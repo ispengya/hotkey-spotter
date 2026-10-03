@@ -1,0 +1,11 @@
+services:
+  worker:
+    build: .
+    container_name: hotspotter-worker
+    mem_limit: 4G
+    cpus: 2
+    environment:
+      JAVA_OPTS: "-Xms256m -Xmx2g -Dserver.port=8888 -Dnacos.serverAddr=127.0.0.1:8848 -Dlogging.debugEnabled=false -Dalgorithm.minCountThreshold=1000"
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
