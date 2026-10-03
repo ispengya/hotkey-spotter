@@ -1,47 +1,32 @@
 package com.ispengya.hotkey.cli.detect;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
- * 双缓冲无锁访问计数器。
+ * 访问计数器抽象：累积 key 的访问次数，并周期 drain 出去上报。
  *
- * <p>使用两个 {@link ConcurrentHashMap} 交替读写，减少锁竞争。
- * 写入时按 seq 的低位选择 map0 或 map1，drain 时翻转并清空另一个。</p>
+ * <p>两个实现分别对应两种上报策略：
+ * <ul>
+ *     <li>{@link DoubleBufferCounterCollector} — 双 map 无锁（默认）</li>
+ *     <li>{@link LockedCounterCollector} — 单 map + 锁</li>
+ * </ul>
+ * 由 {@link CounterMode} 选择，用于性能对比。</p>
  *
  * @author ispengya
  */
-final class AccessCounterCollector {
+interface AccessCounterCollector {
 
-    private final ConcurrentHashMap<String, LongAdder> map0 = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, LongAdder> map1 = new ConcurrentHashMap<>();
-    private final AtomicLong seq = new AtomicLong();
+    /**
+     * 记录一次 key 访问。
+     *
+     * @param key 访问的 key，可为 null（忽略）
+     */
+    void record(String key);
 
-    void record(String key) {
-        if (key == null) {
-            return;
-        }
-        if ((seq.get() & 1L) == 0L) {
-            map0.computeIfAbsent(key, k -> new LongAdder()).increment();
-        } else {
-            map1.computeIfAbsent(key, k -> new LongAdder()).increment();
-        }
-    }
-
-    Map<String, Integer> drain() {
-        long v = seq.incrementAndGet();
-        ConcurrentHashMap<String, LongAdder> target = (v & 1L) == 0L ? map1 : map0;
-        Map<String, Integer> result = new HashMap<>();
-        target.forEach((key, adder) -> {
-            long count = adder.sumThenReset();
-            if (count > 0L) {
-                result.put(key, (int) count);
-            }
-        });
-        target.entrySet().removeIf(e -> e.getValue().sum() == 0L);
-        return result;
-    }
+    /**
+     * 清空并返回当前累计的访问计数。调用后计数器归零。
+     *
+     * @return key -> 访问次数
+     */
+    Map<String, Integer> drain();
 }

@@ -4,6 +4,7 @@ import com.ispengya.hotkey.common.event.EventBus;
 import com.ispengya.hotkey.server.core.AppWindowRegistry;
 import com.ispengya.hotkey.server.core.RuleManager;
 import com.ispengya.hotkey.server.listener.RuleChangeListener;
+import com.ispengya.hotkey.server.monitor.MonitorReporter;
 import com.ispengya.hotkey.server.nacos.NacosServerClient;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Fastjson2Serializer;
@@ -123,10 +124,20 @@ public class HotKeyServerApplication {
         HotKeyServerBootstrap bootstrap = new HotKeyServerBootstrap(nettyServer, nacosIntegration);
         bootstrap.start();
 
+        // Monitor
+        MonitorReporter monitorReporter = new MonitorReporter(
+                nacosClient, properties.getRule().getDataId() + "-metrics", serverConfig.getPort());
+        monitorReporter.setPipeline(pipeline);
+        monitorReporter.setPublisher(changePublisher);
+        monitorReporter.setChannelManager(channelManager);
+        monitorReporter.setWindowRegistry(windowRegistry);
+        monitorReporter.start();
+
         log.info("HotKey Server started on port {}", serverConfig.getPort());
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Stopping HotKey Server...");
+            monitorReporter.stop();
             bootstrap.stop();
             log.info("HotKey Server stopped.");
         }));

@@ -134,6 +134,15 @@ public class NacosServerClient implements NacosClient {
     }
 
     @Override
+    public void publishConfig(String dataId, String group, String content) {
+        try {
+            configService.publishConfig(dataId, group, content);
+        } catch (NacosException e) {
+            log.error("Failed to publish config. dataId={}, group={}", dataId, group, e);
+        }
+    }
+
+    @Override
     public Map<String, RuleConfig> getAllCachedRuleConfigs() {
         return new ConcurrentHashMap<>(ruleConfigCache);
     }

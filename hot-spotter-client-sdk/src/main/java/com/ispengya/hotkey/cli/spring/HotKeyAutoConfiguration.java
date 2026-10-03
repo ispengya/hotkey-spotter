@@ -104,7 +104,8 @@ public class HotKeyAutoConfiguration {
         return new HotKeyReporter(
                 remotingClient,
                 properties.getAppName(),
-                detectConfig.getReportPeriodMillis()
+                detectConfig.getReportPeriodMillis(),
+                detectConfig.getCounterMode()
         );
     }
 

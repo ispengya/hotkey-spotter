@@ -4,6 +4,7 @@ import com.ispengya.hotkey.remoting.protocol.Command;
 import io.netty.channel.Channel;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +42,23 @@ public class ServerChannelManager {
         keyChannels
                 .computeIfAbsent(compositeKey, k -> Collections.newSetFromMap(new ConcurrentHashMap<>()))
                 .add(channel);
+    }
+
+    /**
+     * 获取当前活跃的唯一 Channel 总数。
+     *
+     * @return 去重后活跃 Channel 数
+     */
+    public int getChannelCount() {
+        Set<Channel> unique = new HashSet<>();
+        for (Set<Channel> set : keyChannels.values()) {
+            for (Channel ch : set) {
+                if (ch.isActive()) {
+                    unique.add(ch);
+                }
+            }
+        }
+        return unique.size();
     }
 
     /**

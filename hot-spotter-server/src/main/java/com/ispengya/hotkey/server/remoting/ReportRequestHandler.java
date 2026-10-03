@@ -7,6 +7,7 @@ import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.remoting.server.ServerChannelManager;
 import com.ispengya.hotkey.server.core.AccessReportPipeline;
 import com.ispengya.hotkey.server.model.AccessReport;
+import com.ispengya.hotkey.server.monitor.MonitorMetrics;
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +70,8 @@ public final class ReportRequestHandler implements RequestHandler {
                     // 以 appName:key 为粒度维护推送通道，后续热 key 推送仅投递到真正访问过该 key 的 client
                     channelManager.registerKeyChannel(message.getAppName(), key, ctx.channel());
 
+                    MonitorMetrics.RECEIVED.increment();
+
                     AccessReport report = new AccessReport(
                             message.getAppName(),
                             key,
@@ -77,6 +80,7 @@ public final class ReportRequestHandler implements RequestHandler {
                             0L,
                             count
                     );
+                    report.setEntryTimeMs(System.currentTimeMillis());
                     offer(report);
                 }
             }

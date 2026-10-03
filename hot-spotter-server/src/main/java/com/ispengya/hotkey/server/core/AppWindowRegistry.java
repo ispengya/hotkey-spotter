@@ -74,6 +74,19 @@ public final class AppWindowRegistry {
     }
 
     /**
+     * 获取所有 app 的窗口缓存总条目数（用于监控）。
+     *
+     * @return 所有 Caffeine 缓存 estimatedSize 之和
+     */
+    public long getTotalCacheSize() {
+        long total = 0;
+        for (Cache<String, SlidingWindow> cache : appCaches.values()) {
+            total += cache.estimatedSize();
+        }
+        return total;
+    }
+
+    /**
      * 清空指定 app 的所有窗口缓存。规则变更时调用，让窗口按新规则重建。
      */
     public void clearApp(String appName) {

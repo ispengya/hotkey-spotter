@@ -22,22 +22,38 @@ public class HotKeyReporter {
     private final ScheduledExecutorService scheduler;
     private final HotKeyRemotingClient remotingClient;
     private final String appName;
-    private final AccessCounterCollector collector = new AccessCounterCollector();
+    private final AccessCounterCollector collector;
     private final long reportPeriodMillis;
 
     public HotKeyReporter(HotKeyRemotingClient remotingClient,
                           String appName,
                           long reportPeriodMillis) {
+        this(remotingClient, appName, reportPeriodMillis, CounterMode.DOUBLE);
+    }
+
+    public HotKeyReporter(HotKeyRemotingClient remotingClient,
+                          String appName,
+                          long reportPeriodMillis,
+                          CounterMode counterMode) {
         this.scheduler = Executors.newScheduledThreadPool(1);
         this.remotingClient = remotingClient;
         this.appName = appName;
         this.reportPeriodMillis = reportPeriodMillis;
+        this.collector = createCollector(counterMode);
 
-        log.info("HotKeyReporter initialized. appName={}, reportPeriodMillis={}", appName, reportPeriodMillis);
+        log.info("HotKeyReporter initialized. appName={}, reportPeriodMillis={}, counterMode={}",
+                appName, reportPeriodMillis, counterMode);
     }
 
     public HotKeyReporter(HotKeyRemotingClient remotingClient, String appName) {
         this(remotingClient, appName, 500L);
+    }
+
+    private static AccessCounterCollector createCollector(CounterMode mode) {
+        if (mode == CounterMode.LOCK) {
+            return new LockedCounterCollector();
+        }
+        return new DoubleBufferCounterCollector();
     }
 
     public void start() {

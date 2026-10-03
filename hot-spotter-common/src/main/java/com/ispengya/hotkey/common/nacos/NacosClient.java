@@ -103,6 +103,15 @@ public interface NacosClient {
     Map<String, RuleConfig> getAllCachedRuleConfigs();
 
     /**
+     * 发布配置到 Nacos。
+     *
+     * @param dataId  配置 ID
+     * @param group   配置分组
+     * @param content 配置内容
+     */
+    void publishConfig(String dataId, String group, String content);
+
+    /**
      * 关闭客户端。
      */
     void shutdown();

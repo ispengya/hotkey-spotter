@@ -5,6 +5,7 @@ import com.ispengya.hotkey.remoting.protocol.Command;
 import com.ispengya.hotkey.remoting.protocol.CommandType;
 import com.ispengya.hotkey.remoting.protocol.Serializer;
 import com.ispengya.hotkey.remoting.server.ServerChannelManager;
+import com.ispengya.hotkey.server.monitor.MonitorMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,15 +75,28 @@ public final class HotKeyChangePublisher {
     }
 
     private void sendSingle(String appName, String key) {
-        HotKeyViewMessage view = new HotKeyViewMessage();
-        HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry();
-        entry.setAddedKey(key);
-        Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
-        views.put(appName, entry);
-        view.setViews(views);
-        byte[] payload = serializer.serialize(view);
-        Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
-        channelManager.broadcastToKey(appName, key, command);
+        try {
+            HotKeyViewMessage view = new HotKeyViewMessage();
+            HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry();
+            entry.setAddedKey(key);
+            Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
+            views.put(appName, entry);
+            view.setViews(views);
+            byte[] payload = serializer.serialize(view);
+            Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
+            channelManager.broadcastToKey(appName, key, command);
+            MonitorMetrics.PUSHED.increment();
+        } catch (Exception e) {
+            MonitorMetrics.PUSH_FAILED.increment();
+            log.error("Failed to send hot key push. appName={}, key={}", appName, key, e);
+        }
+    }
+
+    /**
+     * 获取推送队列当前积压量。
+     */
+    public int getQueueSize() {
+        return queue.size();
     }
 
     private static final class PushEvent {

@@ -43,6 +43,12 @@ public final class AccessReport {
     private final int count;
 
     /**
+     * 服务端接收时间（毫秒），用于计算 Pipeline 排队延迟。
+     * 在 Netty 线程收到上报时设置，消费者消费时读取。
+     */
+    private long entryTimeMs;
+
+    /**
      * 构造访问上报对象。
      *
      * @param appName         应用名
@@ -88,5 +94,13 @@ public final class AccessReport {
 
     public int getCount() {
         return count;
+    }
+
+    public long getEntryTimeMs() {
+        return entryTimeMs;
+    }
+
+    public void setEntryTimeMs(long entryTimeMs) {
+        this.entryTimeMs = entryTimeMs;
     }
 }

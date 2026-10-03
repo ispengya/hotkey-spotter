@@ -1,5 +1,6 @@
 package com.ispengya.hotkey.cli.config;
 
+import com.ispengya.hotkey.cli.detect.CounterMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -69,6 +70,11 @@ public class HotKeyProperties {
 
         private Long queryTimeoutMillis = 3000L;
 
+        /**
+         * 访问计数器实现策略：{@code double}（双 map 无锁，默认）或 {@code lock}（单 map + 锁）。
+         */
+        private CounterMode counterMode = CounterMode.DOUBLE;
+
         public Long getReportPeriodMillis() {
             return reportPeriodMillis;
         }
@@ -91,6 +97,14 @@ public class HotKeyProperties {
 
         public void setQueryTimeoutMillis(Long queryTimeoutMillis) {
             this.queryTimeoutMillis = queryTimeoutMillis;
+        }
+
+        public CounterMode getCounterMode() {
+            return counterMode;
+        }
+
+        public void setCounterMode(CounterMode counterMode) {
+            this.counterMode = counterMode;
         }
     }
 
